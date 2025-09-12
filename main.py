@@ -101,6 +101,6 @@ for name in bookmark_names:
     else:
         print(f"Arquivo {original_filename} não encontrado.")
 navegador.quit()
+print("Processo de extração concluído. Iniciando processamento dos dados...")
 import tratamento
 tratamento.main()
-time.sleep(20)  # Aguarda um pouco para garantir que o ESC teve efeito
