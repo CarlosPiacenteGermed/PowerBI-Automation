@@ -7,6 +7,7 @@ from selenium.webdriver.common.keys import Keys
 from dotenv import load_dotenv
 import time
 import os
+import pandas as pd
 
 
 navegador = webdriver.Chrome()
@@ -93,8 +94,13 @@ for name in bookmark_names:
     new_path = os.path.join(download_folder, new_filename)
 
     if os.path.exists(original_path):
+        if os.path.exists(new_path):
+            os.remove(new_path)  # Remove o arquivo antigo se já existir
         os.rename(original_path, new_path)
         print(f"Arquivo renomeado para: {new_filename}")
     else:
         print(f"Arquivo {original_filename} não encontrado.")
-exec(open("tratamento.py").read())
+navegador.quit()
+import tratamento
+tratamento.main()
+time.sleep(20)  # Aguarda um pouco para garantir que o ESC teve efeito
