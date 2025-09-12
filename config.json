@@ -1,0 +1,12 @@
+{
+  "powerbi_url": "https://app.powerbi.com/groups/me/reports/ea2cf9b1-6ee5-4bfe-bc3f-a03da4128881/7383820f33dae729a192?ctid=e6e393d7-971b-4b04-bce1-ba3967f60dd4",
+  "filtros": {
+    "Tipo_Demanda": "DEMANDA",
+    "Nome_GN_GR": ["CLICIA SIQUEIRA", "DIEGO VICENTE RODRIGUES"],
+    "Ano_Mes": [
+      "2024-janeiro", "2024-fevereiro", "2024-março", "2024-abril", "2024-maio", "2024-junho", "2024-julho",
+      "2025-janeiro", "2025-fevereiro", "2025-março", "2025-abril", "2025-maio", "2025-junho", "2025-julho", "2025-agosto", "2024-agosto"
+    ],
+    "Canal_CUP": "FARMACIAS"
+  }
+}
