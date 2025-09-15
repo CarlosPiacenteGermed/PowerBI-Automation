@@ -6,17 +6,22 @@ def main():
     # Carregar variáveis de ambiente
     load_dotenv()
     username = os.getenv("USERNAME")
-
+    coluna_nome = os.getenv("COLUNA_NOME")
+    coluna_grupo = os.getenv("COLUNA_GRUPO")
+   
     # Caminho da pasta Downloads e RT
     downloads_folder = f"C:\\Users\\{username}\\Downloads"
     rt_folder = os.path.join(downloads_folder, "RT")
     os.makedirs(rt_folder, exist_ok=True)  # Cria a pasta RT se não existir
 
     # Caminhos dos arquivos
-    path_coord = os.path.join(downloads_folder, "Material Coordenador Contas RT.xlsx")
-    path_total = os.path.join(downloads_folder, "Material Coordenador Geral RT.xlsx")
-    path_grupo = os.path.join(downloads_folder, "Material Coordenador RT.xlsx")
+    bookmark_names = [name.strip() + ".xlsx" for name in os.getenv("BOOKMARKS", "").split(",") if name.strip()]
+    if len(bookmark_names) != 3:
+        raise ValueError("A variável BOOKMARKS no .env deve conter exatamente 3 nomes separados por vírgula.")
 
+    path_coord = os.path.join(downloads_folder, bookmark_names[0])
+    path_total = os.path.join(downloads_folder, bookmark_names[1])
+    path_grupo = os.path.join(downloads_folder, bookmark_names[2])
     # Carregar as bases
     df_coord = pd.read_excel(path_coord, skiprows=2, engine="openpyxl")
     df_total = pd.read_excel(path_total, skiprows=2, engine="openpyxl")
@@ -32,7 +37,7 @@ def main():
     df_total['CONTAS REDE'] = df_total['REGIONAL REDE'].replace('DIEGO VICENTE RODRIGUES', 'Total Coord.')
 
     # ------------------ TABELA PRINCIPAL ------------------ #
-    def calcular_indicadores_gerais(df, coluna_nome='CONTAS REDE'):
+    def calcular_indicadores_gerais(df, coluna_nome=coluna_nome):
         resultado = []
         for nome in df[coluna_nome].unique():
             dados = df[df[coluna_nome] == nome]
@@ -52,8 +57,8 @@ def main():
         return pd.DataFrame(resultado)
 
     # Calcular e ordenar
-    tabela_coord = calcular_indicadores_gerais(df_coord, 'CONTAS REDE')
-    tabela_total = calcular_indicadores_gerais(df_total, 'REGIONAL REDE')
+    tabela_coord = calcular_indicadores_gerais(df_coord, coluna_nome)
+    tabela_total = calcular_indicadores_gerais(df_total, coluna_nome)
     tabela_final = pd.concat([tabela_coord, tabela_total], ignore_index=True)
 
     # Colocar Total Coord. por último
@@ -68,9 +73,9 @@ def main():
         df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == 8)]
 
         resultado = []
-        for nome in df_ago['CONTAS REDE'].unique():
-            dados_ago = df_ago[df_ago['CONTAS REDE'] == nome]
-            dados_l3m = df_l3m[df_l3m['CONTAS REDE'] == nome]
+        for nome in df_ago[coluna_nome].unique():
+            dados_ago = df_ago[df_ago[coluna_nome] == nome]
+            dados_l3m = df_l3m[df_l3m[coluna_nome] == nome]
 
             def calc_desv_percentual(valor_atual, media_l3m):
                 return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
@@ -127,9 +132,9 @@ def main():
     # Função para calcular indicadores por grupo econômico (tabela tipo "imagem")
     def calcular_tabela_por_grupo(dados_ago, dados_l3m):
         resultado = []
-        for grupo in dados_ago['GRUPO ECONOMICO'].unique():
-            dados_ago_grupo = dados_ago[dados_ago['GRUPO ECONOMICO'] == grupo]
-            dados_l3m_grupo = dados_l3m[dados_l3m['GRUPO ECONOMICO'] == grupo]
+        for grupo in dados_ago[coluna_grupo].unique():
+            dados_ago_grupo = dados_ago[dados_ago[coluna_grupo] == grupo]
+            dados_l3m_grupo = dados_l3m[dados_l3m[coluna_grupo] == grupo]
 
             def calc_desv_percentual(valor_atual, media_l3m):
                 return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
@@ -155,7 +160,7 @@ def main():
             desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
 
             resultado.append({
-                'GRUPO ECONOMICO': grupo,
+                '': grupo,
                 'DEM. PPP AGO/25': round(ppp_ago),
                 'DESV. % (PPP L3M)': round(desv_ppp, 1),
                 'POSITIV. AGO/25': round(positiv_ago),
@@ -180,7 +185,7 @@ def main():
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
             resultado.append({
-                'GRUPO ECONOMICO': grupo,
+                '': grupo,
                 'RCD YTD-1': round(ytd_1, 2),
                 'RCD YTDO': round(ytdo, 2),
                 'DESV. ABS': round(desv_abs, 2),
@@ -191,9 +196,9 @@ def main():
         return df_resultado.sort_values(by='RCD YTDO', ascending=False).head(7)
 
     # Gerar tabelas por coordenador
-    for coordenador in df_ago['CONTAS REDE'].unique():
-        dados_ago_coord = df_ago[df_ago['CONTAS REDE'] == coordenador]
-        dados_l3m_coord = df_l3m[df_l3m['CONTAS REDE'] == coordenador]
+    for coordenador in df_ago[coluna_nome].unique():
+        dados_ago_coord = df_ago[df_ago[coluna_nome] == coordenador]
+        dados_l3m_coord = df_l3m[df_l3m[coluna_nome] == coordenador]
         # Tabela tipo "imagem"
         tabela_kpi = calcular_tabela_por_grupo(dados_ago_coord, dados_l3m_coord)
         # Tabela tipo "principal"
