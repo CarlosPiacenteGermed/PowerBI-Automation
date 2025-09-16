@@ -273,7 +273,7 @@ def main():
         tabela_ytd.to_excel(os.path.join(rt_folder, f"tabela_top7_YTD_{primeiro_nome}.xlsx"), index=False)
 
     # Exportar tabelas principais
-    tabela_final.to_excel(os.path.join(rt_folder, "tabela_principal.xlsx"), index=False)
+    tabela_final.to_excel(os.path.join(rt_folder, "tabela_ytd.xlsx"), index=False)
     tabela_l3m_final.to_excel(os.path.join(rt_folder, "tabela_l3m_agosto.xlsx"), index=False)
     print(f"Arquivos salvos na pasta: {rt_folder}")
 if __name__ == "__main__":
