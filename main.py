@@ -86,7 +86,8 @@ for name in bookmark_names:
     # Move o mouse para uma posição aproximada (x, y)
     pyautogui.moveTo(500, 500) 
     
-    time.sleep(10)  
+
+    time.sleep(30)  
 
     # Renomeia o arquivo
     new_filename = f"{name.strip()}.xlsx"

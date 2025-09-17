@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 
-def main():
+def main(mes_limite):
     # Carregar variáveis de ambiente
     load_dotenv()
     username = os.getenv("USERNAME")
@@ -41,8 +41,8 @@ def main():
         for nome in df[coluna_nome].unique():
             dados = df[df[coluna_nome] == nome]
 
-            ytd_1 = dados[dados['Ano'] == 2024]['PPP Realizado'].sum()
-            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= 8)]['PPP Realizado'].sum()
+            ytd_1 = dados[(dados['Ano'] == 2024) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
+            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
             nome_final = 'Total' if nome == 'Total' else nome.split()[0]
@@ -68,8 +68,9 @@ def main():
 
     # ------------------ TABELA DA IMAGEM ------------------ #
     def calcular_tabela_l3m_gerais(df):
-        df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin([6, 7, 8]))]
-        df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == 8)]
+        meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+        df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin([meses_l3m]))]
+        df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
 
         resultado = []
         for nome in df_ago[coluna_nome].unique():
@@ -125,16 +126,17 @@ def main():
     tabela_l3m_final = pd.concat([tabela_l3m_final, linha_total], ignore_index=True)
 
     # Filtrar dados de agosto/2025 e últimos 3 meses
-    df_ago = df_grupo[(df_grupo['Ano'] == 2025) & (df_grupo['Mes'] == 8)]
-    df_l3m = df_grupo[(df_grupo['Ano'] == 2025) & (df_grupo['Mes'].isin([6, 7, 8]))]
+    meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+    df_ago = df_grupo[(df_grupo['Ano'] == 2025) & (df_grupo['Mes'] == mes_limite)]
+    df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin([meses_l3m]))]
 
     # Função para calcular indicadores gerais por grupo econômico (tabela tipo "principal")
     def calcular_indicadores_gerais_grupo(df, coluna_nome = coluna_nome):
         resultado = []
         for grupo in df[coluna_nome].unique():
             dados = df[df[coluna_nome] == grupo]
-            ytd_1 = dados[dados['Ano'] == 2024]['PPP Realizado'].sum()
-            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= 8)]['PPP Realizado'].sum()
+            ytd_1 = dados[(dados['Ano'] == 2024) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
+            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
             resultado.append({
@@ -260,7 +262,7 @@ def main():
         return df_top7
     #Gerar tabelas por coordenador
     for coordenador in df_ago[coluna_nome].unique():
-        dados_coord = df_grupo[df_grupo[coluna_nome] == coordenador]
+        dados_coord = df_grupo[(df_grupo[coluna_nome] == coordenador) & (df_grupo['Ano'] == 2025) & (df_grupo['Mes'] <= mes_limite)]
         dados_ago_coord = df_ago[df_ago[coluna_nome] == coordenador]
         dados_l3m_coord = df_l3m[df_l3m[coluna_nome] == coordenador]
         # Tabela tipo "principal" (YTD)
@@ -277,4 +279,6 @@ def main():
     tabela_l3m_final.to_excel(os.path.join(rt_folder, "tabela_l3m_agosto.xlsx"), index=False)
     print(f"Arquivos salvos na pasta: {rt_folder}")
 if __name__ == "__main__":
-    main()
+    mes_limite = int(input("Informe o mês limite (número de 1 a 12): "))
+   
+    main(mes_limite)
