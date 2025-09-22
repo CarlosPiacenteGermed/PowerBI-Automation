@@ -113,48 +113,41 @@ def calcular_kpis(dados_ago, dados_l3m):
     }
     return kpis
 
-def calcular_tabela_por_grupo(df_ago_total, df_l3m_total, df_ago_visitado, df_l3m_visitado, df_ago_nvisitado, df_l3m_nvisitado, coluna_grupo):
+
+def calcular_tabela_por_grupo_agrupado(df_ago_total, df_l3m_total, df_ago_visitado, df_l3m_visitado, df_ago_nvisitado, df_l3m_nvisitado, coluna_grupo, coluna_responsavel):
     resultado = []
 
-    grupos = df_ago_total[coluna_grupo].unique()
-    for grupo in grupos:
-        # Linha do grupo (total)
-        dados_ago_grupo = df_ago_total[df_ago_total[coluna_grupo] == grupo]
-        dados_l3m_grupo = df_l3m_total[df_l3m_total[coluna_grupo] == grupo]
-        kpis_total = calcular_kpis(dados_ago_grupo, dados_l3m_grupo)
-        kpis_total['Responsável'] = grupo
-        resultado.append(kpis_total)
+    # Lista de responsáveis únicos
+    responsaveis = df_ago_total[coluna_responsavel].unique()
+    for responsavel in responsaveis:
+        # Adiciona linha do responsável
+        resultado.append({'Responsável': responsavel})
 
-        # Linha VISITADO
-        dados_ago_vis = df_ago_visitado[df_ago_visitado[coluna_grupo] == grupo]
-        dados_l3m_vis = df_l3m_visitado[df_l3m_visitado[coluna_grupo] == grupo]
-        kpis_vis = calcular_kpis(dados_ago_vis, dados_l3m_vis)
-        kpis_vis['Responsável'] = 'VISITADO'
-        resultado.append(kpis_vis)
+        # Provedores desse responsável
+        provedores = df_ago_total[df_ago_total[coluna_responsavel] == responsavel][coluna_grupo].unique()
+        for grupo in provedores:
+            # Linha do grupo (total)
+            dados_ago_grupo = df_ago_total[(df_ago_total[coluna_grupo] == grupo) & (df_ago_total[coluna_responsavel] == responsavel)]
+            dados_l3m_grupo = df_l3m_total[(df_l3m_total[coluna_grupo] == grupo) & (df_l3m_total[coluna_responsavel] == responsavel)]
+            kpis_total = calcular_kpis(dados_ago_grupo, dados_l3m_grupo)
+            kpis_total['Responsável'] = grupo
+            resultado.append(kpis_total)
 
-        # Linha NÃO VISITADO
-        dados_ago_nao = df_ago_nvisitado[df_ago_nvisitado[coluna_grupo] == grupo]
-        dados_l3m_nao = df_l3m_nvisitado[df_l3m_nvisitado[coluna_grupo] == grupo]
-        kpis_nao = calcular_kpis(dados_ago_nao, dados_l3m_nao)
-        kpis_nao['Responsável'] = 'NÃO VISITADO'
-        resultado.append(kpis_nao)
+            # Linha VISITADO
+            dados_ago_vis = df_ago_visitado[(df_ago_visitado[coluna_grupo] == grupo) & (df_ago_visitado[coluna_responsavel] == responsavel)]
+            dados_l3m_vis = df_l3m_visitado[(df_l3m_visitado[coluna_grupo] == grupo) & (df_l3m_visitado[coluna_responsavel] == responsavel)]
+            kpis_vis = calcular_kpis(dados_ago_vis, dados_l3m_vis)
+            kpis_vis['Responsável'] = 'VISITADO'
+            resultado.append(kpis_vis)
+
+            # Linha NÃO VISITADO
+            dados_ago_nao = df_ago_nvisitado[(df_ago_nvisitado[coluna_grupo] == grupo) & (df_ago_nvisitado[coluna_responsavel] == responsavel)]
+            dados_l3m_nao = df_l3m_nvisitado[(df_l3m_nvisitado[coluna_grupo] == grupo) & (df_l3m_nvisitado[coluna_responsavel] == responsavel)]
+            kpis_nao = calcular_kpis(dados_ago_nao, dados_l3m_nao)
+            kpis_nao['Responsável'] = 'NÃO VISITADO'
+            resultado.append(kpis_nao)
 
     df_final = pd.DataFrame(resultado)
-
-    # TOTAL
-    total = {
-        'Responsável': 'TOTAL',
-        'DEM. PPP AGO/25': df_final['DEM. PPP AGO/25'].sum(),
-    }
-    # Calcula médias para os demais campos
-    for col in [
-        'DEM. PPP l3m','DESV. % (PPP L3M)', 'POSITIV. AGO/25', 'DESV. % (POSITIV L3M)',
-        'GIRO AGO/25', 'DESV. % (GIRO L3M)', 'SKU/PDV AGO/25',
-        'DESV. % (SKU L3M)', 'P. MÉDIO AGO/25', 'DESV. % (P. MÉDIO L3M)'
-    ]:
-        if col in df_final.columns:
-            total[col] = round(df_final[col].mean(), 2)
-    df_final = pd.concat([df_final, pd.DataFrame([total])], ignore_index=True)
 
     # Reorganiza as colunas na ordem desejada
     colunas_ordenadas = [
@@ -219,11 +212,11 @@ if __name__ == "__main__":
     print("Arquivo 'resultado_sellin_ytd.xlsx' gerado com sucesso.")
 
     # Chamada da função KPIs por grupo na ordem correta
-    df_resultado_kpis_grupo = calcular_tabela_por_grupo(
+    df_resultado_kpis_grupo = calcular_tabela_por_grupo_agrupado(
         df_ago_total, df_l3m_total,
         df_ago_visitado, df_l3m_visitado,
         df_ago_nvisitado, df_l3m_nvisitado,
-        coluna_grupo
+        coluna_grupo, 'CONTAS DISTY'
     )
 
     # Reorganiza as colunas para colocar 'Responsável' primeiro
