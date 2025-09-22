@@ -127,14 +127,15 @@ def main(mes_limite):
 
     # Filtrar dados de agosto/2025 e últimos 3 meses
     meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+    
     df_ago = df_grupo[(df_grupo['Ano'] == 2025) & (df_grupo['Mes'] == mes_limite)]
     df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin([meses_l3m]))]
-
+    
     # Função para calcular indicadores gerais por grupo econômico (tabela tipo "principal")
-    def calcular_indicadores_gerais_grupo(df, coluna_nome = coluna_nome):
+    def calcular_indicadores_gerais_grupo(df, coluna_grupo):
         resultado = []
-        for grupo in df[coluna_nome].unique():
-            dados = df[df[coluna_nome] == grupo]
+        for grupo in df[coluna_grupo].unique():
+            dados = df[df[coluna_grupo] == grupo]
             ytd_1 = dados[(dados['Ano'] == 2024) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
             ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
@@ -262,11 +263,11 @@ def main(mes_limite):
         return df_top7
     #Gerar tabelas por coordenador
     for coordenador in df_ago[coluna_nome].unique():
-        dados_coord = df_grupo[(df_grupo[coluna_nome] == coordenador) & (df_grupo['Ano'] == 2025) & (df_grupo['Mes'] <= mes_limite)]
+        dados_coord = df_grupo[(df_grupo[coluna_nome] == coordenador)]
         dados_ago_coord = df_ago[df_ago[coluna_nome] == coordenador]
         dados_l3m_coord = df_l3m[df_l3m[coluna_nome] == coordenador]
         # Tabela tipo "principal" (YTD)
-        tabela_ytd = calcular_indicadores_gerais_grupo(dados_coord)
+        tabela_ytd = calcular_indicadores_gerais_grupo(dados_coord, coluna_grupo)
         grupos_top7 = tabela_ytd[(tabela_ytd[''] != 'OUTROS') & (tabela_ytd[''] != 'TOTAL')][''].tolist()
         # Tabela tipo "imagem" (KPI) na mesma ordem do YTD
         tabela_kpi = calcular_tabela_por_grupo(dados_ago_coord, dados_l3m_coord, grupos_top7)
