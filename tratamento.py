@@ -41,15 +41,15 @@ def main(mes_limite):
         for nome in df[coluna_nome].unique():
             dados = df[df[coluna_nome] == nome]
 
-            ytd_1 = dados[(dados['Ano'] == 2024) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
-            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
+            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin([meses_l3m]))]['PPP Realizado'].sum()
+            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
             nome_final = 'Total' if nome == 'Total' else nome.split()[0]
             resultado.append({
                 '': nome_final if coluna_nome == 'CONTAS REDE' or 'CONTAS ASSOC.' else 'Total',
-                'RCD YTD-1': round(ytd_1),
-                'RCD YTDO': round(ytdo),
+                'RCD L3M': round(ytd_1),
+                'RCD MES': round(ytdo),
                 'DESV. ABS': round(desv_abs),
                 'DESV. %': round(desv_perc, 1),
             })
@@ -63,7 +63,7 @@ def main(mes_limite):
     # Colocar Total Coord. por último
     linha_total = tabela_final[tabela_final[''] == 'Total']
     tabela_final = tabela_final[tabela_final[''] != 'Total']
-    tabela_final = tabela_final.sort_values(by='RCD YTDO', ascending=False)
+    tabela_final = tabela_final.sort_values(by='RCD MES', ascending=False)
     tabela_final = pd.concat([tabela_final, linha_total], ignore_index=True)
 
     # ------------------ TABELA DA IMAGEM ------------------ #
@@ -82,6 +82,7 @@ def main(mes_limite):
 
             ppp_ago = dados_ago['PPP Realizado'].sum()
             ppp_l3m = dados_l3m['PPP Realizado'].mean()
+            desv_ppp_abs = ppp_ago - ppp_l3m
             desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
             positiv_ago = dados_ago['Positivação'].mean()
@@ -102,15 +103,16 @@ def main(mes_limite):
             nome_final = 'Total' if nome == 'Total' else nome.split()[0]
             resultado.append({
                 '': nome_final,
-                'DEM. PPP AGO/25': round(ppp_ago),
+                'DEM. PPP MES/25': round(ppp_ago),
+                'DESV. ABS. PPP': round(desv_ppp_abs),
                 'DESV. % (PPP L3M)': round(desv_ppp, 1),
-                'POSITIV. AGO/25': round(positiv_ago),
+                'POSITIV. MES/25': round(positiv_ago),
                 'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
-                'GIRO AGO/25': round(giro_ago, 1),
+                'GIRO MES/25': round(giro_ago, 1),
                 'DESV. % (GIRO L3M)': round(desv_giro, 1),
-                'SKU/PDV AGO/25': round(sku_ago, 1),
+                'SKU/PDV MES/25': round(sku_ago, 1),
                 'DESV. % (SKU L3M)': round(desv_sku, 1),
-                'P. MÉDIO AGO/25': round(preco_ago, 2),
+                'P. MÉDIO MES/25': round(preco_ago, 2),
                 'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
             })
         return pd.DataFrame(resultado)
@@ -136,26 +138,26 @@ def main(mes_limite):
         resultado = []
         for grupo in df[coluna_grupo].unique():
             dados = df[df[coluna_grupo] == grupo]
-            ytd_1 = dados[(dados['Ano'] == 2024) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
-            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] <= mes_limite)]['PPP Realizado'].sum()
+            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin([meses_l3m]))]['PPP Realizado'].sum()
+            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
             resultado.append({
                 '': grupo,
-                'RCD YTD-1': round(ytd_1),
-                'RCD YTDO': round(ytdo),
+                'RCD L3M': round(ytd_1),
+                'RCD MES': round(ytdo),
                 'DESV. ABS': round(desv_abs),
                 'DESV. %': round(desv_perc, 1),
             })
         df_resultado = pd.DataFrame(resultado)
         # Ordena por RCD YTDO e pega os 7 maiores
-        df_top7 = df_resultado.sort_values(by='RCD YTDO', ascending=False).head(7)
+        df_top7 = df_resultado.sort_values(by='RCD MES', ascending=False).head(7)
         # Soma total geral
-        total_geral = df_resultado[['RCD YTD-1', 'RCD YTDO', 'DESV. ABS']].sum()
+        total_geral = df_resultado[['RCD L3M', 'RCD MES', 'DESV. ABS']].sum()
         total_geral['DESV. %'] = ((total_geral['DESV. ABS'] / total_geral['RCD YTD-1']) * 100) if total_geral['RCD YTD-1'] != 0 else 0
         total_row = {'': 'TOTAL', **{col: round(total_geral[col], 2) for col in total_geral.index}}
         # Soma dos TOP7
-        top7_sum = df_top7[['RCD YTD-1', 'RCD YTDO', 'DESV. ABS']].sum()
+        top7_sum = df_top7[['RCD L3M', 'RCD MES', 'DESV. ABS']].sum()
         top7_sum['DESV. %'] = ((top7_sum['DESV. ABS'] / top7_sum['RCD YTD-1']) * 100) if top7_sum['RCD YTD-1'] != 0 else 0
         outros_row = {'': 'OUTROS', **{col: round(total_geral[col] - top7_sum[col], 2) for col in ['RCD YTD-1', 'RCD YTDO', 'DESV. ABS']}}
         outros_row['DESV. %'] = ((outros_row['DESV. ABS'] / outros_row['RCD YTD-1']) * 100) if outros_row['RCD YTD-1'] != 0 else 0
