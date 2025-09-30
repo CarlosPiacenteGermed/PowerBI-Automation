@@ -35,13 +35,19 @@ def main(mes_limite):
 
     df_total[coluna_nome] = 'Total'
 
+    meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
     # ------------------ TABELA PRINCIPAL ------------------ #
     def calcular_indicadores_gerais(df, coluna_nome=coluna_nome):
+        meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+        df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
+        df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
+        
         resultado = []
         for nome in df[coluna_nome].unique():
-            dados = df[df[coluna_nome] == nome]
+            dados = df_ago[df_ago[coluna_nome] == nome]
+            dados_l3 = df_l3m[df_l3m[coluna_nome] == nome]
 
-            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin([meses_l3m]))]['PPP Realizado'].sum()
+            ytd_1 = dados_l3[(dados_l3['Ano'] == 2025) & (dados_l3['Mes'].isin(meses_l3m))]['PPP Realizado'].mean()
             ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
@@ -69,7 +75,7 @@ def main(mes_limite):
     # ------------------ TABELA DA IMAGEM ------------------ #
     def calcular_tabela_l3m_gerais(df):
         meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
-        df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin([meses_l3m]))]
+        df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
         df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
 
         resultado = []
@@ -124,21 +130,19 @@ def main(mes_limite):
     # Reordenar colocando Total Coord. por último
     linha_total = tabela_l3m_final[tabela_l3m_final[''] == 'Total']
     tabela_l3m_final = tabela_l3m_final[tabela_l3m_final[''] != 'Total']
-    tabela_l3m_final = tabela_l3m_final.sort_values(by='DEM. PPP AGO/25', ascending=False)
+    tabela_l3m_final = tabela_l3m_final.sort_values(by='DEM. PPP MES/25', ascending=False)
     tabela_l3m_final = pd.concat([tabela_l3m_final, linha_total], ignore_index=True)
 
     # Filtrar dados de agosto/2025 e últimos 3 meses
-    meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
-    
     df_ago = df_grupo[(df_grupo['Ano'] == 2025) & (df_grupo['Mes'] == mes_limite)]
-    df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin([meses_l3m]))]
+    df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
     
     # Função para calcular indicadores gerais por grupo econômico (tabela tipo "principal")
     def calcular_indicadores_gerais_grupo(df, coluna_grupo):
         resultado = []
         for grupo in df[coluna_grupo].unique():
             dados = df[df[coluna_grupo] == grupo]
-            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin([meses_l3m]))]['PPP Realizado'].sum()
+            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin(meses_l3m))]['PPP Realizado'].mean()
             ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
@@ -154,13 +158,13 @@ def main(mes_limite):
         df_top7 = df_resultado.sort_values(by='RCD MES', ascending=False).head(7)
         # Soma total geral
         total_geral = df_resultado[['RCD L3M', 'RCD MES', 'DESV. ABS']].sum()
-        total_geral['DESV. %'] = ((total_geral['DESV. ABS'] / total_geral['RCD YTD-1']) * 100) if total_geral['RCD YTD-1'] != 0 else 0
+        total_geral['DESV. %'] = ((total_geral['DESV. ABS'] / total_geral['RCD L3M']) * 100) if total_geral['RCD L3M'] != 0 else 0
         total_row = {'': 'TOTAL', **{col: round(total_geral[col], 2) for col in total_geral.index}}
         # Soma dos TOP7
         top7_sum = df_top7[['RCD L3M', 'RCD MES', 'DESV. ABS']].sum()
-        top7_sum['DESV. %'] = ((top7_sum['DESV. ABS'] / top7_sum['RCD YTD-1']) * 100) if top7_sum['RCD YTD-1'] != 0 else 0
-        outros_row = {'': 'OUTROS', **{col: round(total_geral[col] - top7_sum[col], 2) for col in ['RCD YTD-1', 'RCD YTDO', 'DESV. ABS']}}
-        outros_row['DESV. %'] = ((outros_row['DESV. ABS'] / outros_row['RCD YTD-1']) * 100) if outros_row['RCD YTD-1'] != 0 else 0
+        top7_sum['DESV. %'] = ((top7_sum['DESV. ABS'] / top7_sum['RCD L3M']) * 100) if top7_sum['RCD L3M'] != 0 else 0
+        outros_row = {'': 'OUTROS', **{col: round(total_geral[col] - top7_sum[col], 2) for col in ['RCD L3M', 'RCD MES', 'DESV. ABS']}}
+        outros_row['DESV. %'] = ((outros_row['DESV. ABS'] / outros_row['RCD L3M']) * 100) if outros_row['RCD L3M'] != 0 else 0
         # Junta tudo
         df_final = pd.concat([df_top7, pd.DataFrame([outros_row, total_row])], ignore_index=True)
         return df_final
