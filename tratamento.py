@@ -47,8 +47,8 @@ def main(mes_limite):
             dados = df_ago[df_ago[coluna_nome] == nome]
             dados_l3 = df_l3m[df_l3m[coluna_nome] == nome]
 
-            ytd_1 = dados_l3[(dados_l3['Ano'] == 2025) & (dados_l3['Mes'].isin(meses_l3m))]['PPP Realizado'].mean()
-            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].sum()
+            ytd_1 = dados_l3[(dados_l3['Ano'] == 2025) & (dados_l3['Mes'].isin(meses_l3m))]['PPP Realizado'].fillna(0).mean()
+            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].fillna(0).sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
             nome_final = 'Total' if nome == 'Total' else nome.split()[0]
@@ -59,6 +59,7 @@ def main(mes_limite):
                 'DESV. ABS': round(desv_abs),
                 'DESV. %': round(desv_perc, 1),
             })
+
         return pd.DataFrame(resultado)
 
     # Calcular e ordenar
@@ -73,7 +74,7 @@ def main(mes_limite):
     tabela_final = pd.concat([tabela_final, linha_total], ignore_index=True)
 
     # ------------------ TABELA DA IMAGEM ------------------ #
-    def calcular_tabela_l3m_gerais(df):
+    def calcular_tabela_l3m_gerais(df, coluna_nome=coluna_nome):
         meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
         df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
         df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
@@ -86,26 +87,27 @@ def main(mes_limite):
             def calc_desv_percentual(valor_atual, media_l3m):
                 return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
 
-            ppp_ago = dados_ago['PPP Realizado'].sum()
-            ppp_l3m = dados_l3m['PPP Realizado'].mean()
+            ppp_ago = dados_ago['PPP Realizado'].fillna(0).sum()
+            ppp_l3m = dados_l3m['PPP Realizado'].fillna(0).mean()
             desv_ppp_abs = ppp_ago - ppp_l3m
             desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
-            positiv_ago = dados_ago['Positivação'].mean()
-            positiv_l3m = dados_l3m['Positivação'].mean()
+            positiv_ago = dados_ago['Positivação'].fillna(0).mean()
+            positiv_l3m = dados_l3m['Positivação'].fillna(0).mean()
             desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
 
-            giro_ago = dados_ago['Giro Médio'].mean()
-            giro_l3m = dados_l3m['Giro Médio'].mean()
+            giro_ago = dados_ago['Giro Médio'].fillna(0).mean()
+            giro_l3m = dados_l3m['Giro Médio'].fillna(0).mean()
             desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
 
-            sku_ago = dados_ago['SKU-PDV'].mean()
-            sku_l3m = dados_l3m['SKU-PDV'].mean()
+            sku_ago = dados_ago['SKU-PDV'].fillna(0).mean()
+            sku_l3m = dados_l3m['SKU-PDV'].fillna(0).mean()
             desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
 
-            preco_ago = dados_ago['Preco Médio PPP'].mean()
-            preco_l3m = dados_l3m['Preco Médio PPP'].mean()
+            preco_ago = dados_ago['Preco Médio PPP'].fillna(0).mean()
+            preco_l3m = dados_l3m['Preco Médio PPP'].fillna(0).mean()
             desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
+
             nome_final = 'Total' if nome == 'Total' else nome.split()[0]
             resultado.append({
                 '': nome_final,
@@ -122,6 +124,7 @@ def main(mes_limite):
                 'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
             })
         return pd.DataFrame(resultado)
+
 
     # Gerar segunda tabela
     tabela_l3m = calcular_tabela_l3m_gerais(df_coord)
@@ -142,10 +145,14 @@ def main(mes_limite):
         resultado = []
         for grupo in df[coluna_grupo].unique():
             dados = df[df[coluna_grupo] == grupo]
-            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin(meses_l3m))]['PPP Realizado'].mean()
-            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].sum()
+            ytd_1 = dados[(dados['Ano'] == 2025) & (dados['Mes'].isin(meses_l3m))]['PPP Realizado'].fillna(0).mean()
+            ytdo = dados[(dados['Ano'] == 2025) & (dados['Mes'] == mes_limite)]['PPP Realizado'].fillna(0).sum()
             desv_abs = ytdo - ytd_1
             desv_perc = ((desv_abs / ytd_1) * 100) if ytd_1 != 0 else 0
+            ytd_1 = 0 if pd.isna(ytd_1) else ytd_1
+            ytdo = 0 if pd.isna(ytdo) else ytdo
+            desv_abs = 0 if pd.isna(desv_abs) else desv_abs
+            desv_perc = 0 if pd.isna(desv_perc) else desv_perc
             resultado.append({
                 '': grupo,
                 'RCD L3M': round(ytd_1),
@@ -177,24 +184,24 @@ def main(mes_limite):
             def calc_desv_percentual(valor_atual, media_l3m):
                 return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
 
-            ppp_ago = dados_ago_grupo['PPP Realizado'].sum()
-            ppp_l3m = dados_l3m_grupo['PPP Realizado'].mean()
+            ppp_ago = dados_ago_grupo['PPP Realizado'].fillna(0).sum()
+            ppp_l3m = dados_l3m_grupo['PPP Realizado'].fillna(0).mean()
             desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
-            positiv_ago = dados_ago_grupo['Positivação'].mean()
-            positiv_l3m = dados_l3m_grupo['Positivação'].mean()
+            positiv_ago = dados_ago_grupo['Positivação'].fillna(0).mean()
+            positiv_l3m = dados_l3m_grupo['Positivação'].fillna(0).mean()
             desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
 
-            giro_ago = dados_ago_grupo['Giro Médio'].mean()
-            giro_l3m = dados_l3m_grupo['Giro Médio'].mean()
+            giro_ago = dados_ago_grupo['Giro Médio'].fillna(0).mean()
+            giro_l3m = dados_l3m_grupo['Giro Médio'].fillna(0).mean()
             desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
 
-            sku_ago = dados_ago_grupo['SKU-PDV'].mean()
-            sku_l3m = dados_l3m_grupo['SKU-PDV'].mean()
+            sku_ago = dados_ago_grupo['SKU-PDV'].fillna(0).mean()
+            sku_l3m = dados_l3m_grupo['SKU-PDV'].fillna(0).mean()
             desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
 
-            preco_ago = dados_ago_grupo['Preco Médio PPP'].mean()
-            preco_l3m = dados_l3m_grupo['Preco Médio PPP'].mean()
+            preco_ago = dados_ago_grupo['Preco Médio PPP'].fillna(0).mean()
+            preco_l3m = dados_l3m_grupo['Preco Médio PPP'].fillna(0).mean()
             desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
 
             resultado.append({
