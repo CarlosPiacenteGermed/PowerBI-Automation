@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from dotenv import load_dotenv
+from openpyxl import load_workbook
 
 def main(mes_limite):
     # Carregar variáveis de ambiente
@@ -118,7 +119,7 @@ def main(mes_limite):
                 'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
                 'GIRO MES/25': round(giro_ago, 1),
                 'DESV. % (GIRO L3M)': round(desv_giro, 1),
-                'SKU/PDV MES/25': round(sku_ago, 1),
+                'SKU/PDV MES/25': round(sku_ago),
                 'DESV. % (SKU L3M)': round(desv_sku, 1),
                 'P. MÉDIO MES/25': round(preco_ago, 2),
                 'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
@@ -213,7 +214,7 @@ def main(mes_limite):
                 'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
                 'GIRO AGO/25': round(giro_ago, 1),
                 'DESV. % (GIRO L3M)': round(desv_giro, 1),
-                'SKU/PDV AGO/25': round(sku_ago, 1),
+                'SKU/PDV AGO/25': round(sku_ago),
                 'DESV. % (SKU L3M)': round(desv_sku, 1),
                 'P. MÉDIO AGO/25': round(preco_ago, 2),
                 'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
@@ -293,10 +294,121 @@ def main(mes_limite):
         tabela_kpi.to_excel(os.path.join(rt_folder, f"tabela_top7_KPI_{primeiro_nome}.xlsx"), index=False)
         tabela_ytd.to_excel(os.path.join(rt_folder, f"tabela_top7_YTD_{primeiro_nome}.xlsx"), index=False)
 
+        wb = load_workbook(os.path.join(rt_folder, f"tabela_top7_YTD_{primeiro_nome}.xlsx"))
+        ws = wb.active  # primeira planilha (ou use wb['NomeDaAba'] se você definiu)
+
+        # Formatos desejados
+        formato_milhar = '#,##0'     # B, C, D: X.XXX.XXX (sem casas decimais, usa locale pt-BR)
+        formato_percent_txt = '0.0"%"'  # E: exibe 12,3%
+
+        # Descobre a última linha com dados
+        ultima_linha = ws.max_row
+
+        # Colunas B, C, D => separador de milhar, sem decimais
+        for col in ('B', 'C', 'D'):
+            for row in range(2, ultima_linha + 1):  # pula o cabeçalho
+                cell = ws[f'{col}{row}']
+                if cell.value is not None:
+                    cell.number_format = formato_milhar
+
+        # Coluna E => mostrar o símbolo % APÓS o número (sem mudar a escala)
+        for row in range(2, ultima_linha + 1):
+            cell = ws[f'E{row}']
+            if cell.value is not None:
+                cell.number_format = formato_percent_txt
+
+        # Salva as formatações
+        wb.save(os.path.join(rt_folder, f"tabela_top7_YTD_{primeiro_nome}.xlsx"))
+
+         # Abre o arquivo
+        wb = load_workbook(os.path.join(rt_folder, f"tabela_top7_KPI_{primeiro_nome}.xlsx"))
+        ws = wb.active  # ou: ws = wb['L3M'] se você nomeou a aba
+
+        # Formatos desejados
+        formato_milhar = '#,##0'       # B e C: X.XXX.XXX (sem casas decimais; Excel pt-BR usa ponto para milhar)
+        formato_percent_txt = '0.0"%"' # D, F, H, J, L: exibe 1 casa decimal + símbolo % (sem mudar escala)
+
+        # Descobre a última linha com dados
+        ultima_linha = ws.max_row
+
+        # Colunas B, C => separador de milhar, sem decimais
+        for col in ('B', 'C'):
+            for row in range(2, ultima_linha + 1):  # pula o cabeçalho
+                cell = ws[f'{col}{row}']
+                if cell.value is not None and cell.value != "":
+                    cell.number_format = formato_milhar
+
+        # Colunas D, F, H, J, L => número seguido de % (sem mudar a escala)
+        for col in ('D', 'F', 'H', 'J', 'L'):
+            for row in range(2, ultima_linha + 1):
+                cell = ws[f'{col}{row}']
+                if cell.value is not None and cell.value != "":
+                    cell.number_format = formato_percent_txt
+
+        # Salva as formatações
+        wb.save(os.path.join(rt_folder, f"tabela_top7_KPI_{primeiro_nome}.xlsx"))
     # Exportar tabelas principais
     tabela_final.to_excel(os.path.join(rt_folder, "tabela_ytd.xlsx"), index=False)
     tabela_l3m_final.to_excel(os.path.join(rt_folder, "tabela_l3m_agosto.xlsx"), index=False)
-    print(f"Arquivos salvos na pasta: {rt_folder}")
+    
+    
+    # Abre o arquivo
+    wb = load_workbook(os.path.join(rt_folder, "tabela_l3m_agosto.xlsx"))
+    ws = wb.active  # ou: ws = wb['L3M'] se você nomeou a aba
+
+    # Formatos desejados
+    formato_milhar = '#,##0'       # B e C: X.XXX.XXX (sem casas decimais; Excel pt-BR usa ponto para milhar)
+    formato_percent_txt = '0.0"%"' # D, F, H, J, L: exibe 1 casa decimal + símbolo % (sem mudar escala)
+
+    # Descobre a última linha com dados
+    ultima_linha = ws.max_row
+
+    # Colunas B, C => separador de milhar, sem decimais
+    for col in ('B', 'C'):
+        for row in range(2, ultima_linha + 1):  # pula o cabeçalho
+            cell = ws[f'{col}{row}']
+            if cell.value is not None and cell.value != "":
+                cell.number_format = formato_milhar
+
+    # Colunas D, F, H, J, L => número seguido de % (sem mudar a escala)
+    for col in ('D', 'F', 'H', 'J', 'L'):
+        for row in range(2, ultima_linha + 1):
+            cell = ws[f'{col}{row}']
+            if cell.value is not None and cell.value != "":
+                cell.number_format = formato_percent_txt
+
+    # Salva as formatações
+    wb.save(os.path.join(rt_folder, "tabela_l3m_agosto.xlsx"))
+
+
+
+    wb = load_workbook(os.path.join(rt_folder, "tabela_ytd.xlsx"))
+    ws = wb.active  # primeira planilha (ou use wb['NomeDaAba'] se você definiu)
+
+    # Formatos desejados
+    formato_milhar = '#,##0'     # B, C, D: X.XXX.XXX (sem casas decimais, usa locale pt-BR)
+    formato_percent_txt = '0.0"%"'  # E: exibe 12,3%
+
+    # Descobre a última linha com dados
+    ultima_linha = ws.max_row
+
+    # Colunas B, C, D => separador de milhar, sem decimais
+    for col in ('B', 'C', 'D'):
+        for row in range(2, ultima_linha + 1):  # pula o cabeçalho
+            cell = ws[f'{col}{row}']
+            if cell.value is not None:
+                cell.number_format = formato_milhar
+
+    # Coluna E => mostrar o símbolo % APÓS o número (sem mudar a escala)
+    for row in range(2, ultima_linha + 1):
+        cell = ws[f'E{row}']
+        if cell.value is not None:
+            cell.number_format = formato_percent_txt
+
+    # Salva as formatações
+    wb.save(os.path.join(rt_folder, "tabela_ytd.xlsx"))
+
+    print(f"Arquivos salvos e formatados na pasta: {rt_folder}")
 if __name__ == "__main__":
     mes_limite = int(input("Informe o mês limite (número de 1 a 12): "))
    
