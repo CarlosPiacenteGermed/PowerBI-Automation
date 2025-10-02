@@ -1,87 +1,103 @@
+
 import os
 import pandas as pd
 from dotenv import load_dotenv
 
-def calcular_sellin_ytd(df_total,df_nao_visitado,df_visitado,mes_limite):
+
+def calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite):
+    
     # Carregar variáveis de ambiente
     load_dotenv()
     coluna_nome = os.getenv("COLUNA_NOME")  # Ex: 'Responsável'
 
-    #padronizar datas
+    # padronizar datas
     for df in [df_total, df_visitado, df_nao_visitado]:
         df['Mes/Ano'] = pd.to_datetime(df['Mes/Ano'])
         df['Ano'] = df['Mes/Ano'].dt.year
         df['Mes'] = df['Mes/Ano'].dt.month
 
-    # Função para calcular YTD
-    def calcular_ytd(df):
-        ytd_2024 = df[(df['Ano'] == 2024) & (df['Mes'] <= mes_limite)]['PPP Realizado'].sum()
-        ytd_2025 = df[(df['Ano'] == 2025) & (df['Mes'] <= mes_limite)]['PPP Realizado'].sum()
-        desv_abs = ytd_2025 - ytd_2024
-        desv_perc = (desv_abs / ytd_2024 * 100) if ytd_2024 != 0 else 0
-        return ytd_2024, ytd_2025, desv_abs, desv_perc
+    # Janela L3M baseada no mês limite
+    meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite - 1]
+
+    def calcular_l3m_mes(df):
+        # L3M = média dos últimos 3 meses (PPP Realizado)
+        l3m = (
+            df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]['PPP Realizado']
+            .fillna(0)
+            .mean()
+        )
+        # MÊS = soma do mês limite (PPP Realizado)
+        mes = (
+            df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]['PPP Realizado']
+            .fillna(0)
+            .sum()
+        )
+        desv_abs = mes - l3m
+        desv_perc = (desv_abs / l3m * 100) if l3m != 0 else 0
+        return l3m, mes, desv_abs, desv_perc
 
     resultado = []
 
     # Responsáveis únicos
     responsaveis = df_total[coluna_nome].unique()
 
-    # Calcular YTD0 total para cada responsável
-    ytd0_totais = {}
+    # Para ordenar: usar RCD MES total de cada responsável (decrescente)
+    rcd_mes_totais = {}
     for resp in responsaveis:
         total = df_total[df_total[coluna_nome] == resp]
-        ytd_2024_total, ytd_2025_total, desv_total, perc_total = calcular_ytd(total)
-        ytd0_totais[resp] = ytd_2025_total
+        _, mes_total, _, _ = calcular_l3m_mes(total)
+        rcd_mes_totais[resp] = mes_total
 
-    # Ordenar responsáveis pelo YTD0 total (decrescente)
-    responsaveis_ordenados = sorted(responsaveis, key=lambda r: ytd0_totais[r], reverse=True)
+    responsaveis_ordenados = sorted(responsaveis, key=lambda r: rcd_mes_totais[r], reverse=True)
 
     for resp in responsaveis_ordenados:
         total = df_total[df_total[coluna_nome] == resp]
         visitado = df_visitado[df_visitado[coluna_nome] == resp]
         nao_visitado = df_nao_visitado[df_nao_visitado[coluna_nome] == resp]
-        
-        ytd_2024_total, ytd_2025_total, desv_total, perc_total = calcular_ytd(total)
-        ytd_2024_vis, ytd_2025_vis, desv_vis, perc_vis = calcular_ytd(visitado)
-        ytd_2024_nao, ytd_2025_nao, desv_nao, perc_nao = calcular_ytd(nao_visitado)
 
-        repres_vis = (ytd_2025_vis / ytd_2025_total * 100) if ytd_2025_total != 0 else 0
-        repres_nao = (ytd_2025_nao / ytd_2025_total * 100) if ytd_2025_total != 0 else 0
-        
+        l3m_total, mes_total, desv_total, perc_total = calcular_l3m_mes(total)
+        l3m_vis, mes_vis, desv_vis, perc_vis = calcular_l3m_mes(visitado)
+        l3m_nao, mes_nao, desv_nao, perc_nao = calcular_l3m_mes(nao_visitado)
+
+        repres_vis = (mes_vis / mes_total * 100) if mes_total != 0 else 0
+        repres_nao = (mes_nao / mes_total * 100) if mes_total != 0 else 0
+
         # Linha Total (Responsável)
         resultado.append({
             'Responsável': resp,
-            'RCD YTD-1': round(ytd_2024_total),
-            'RCD YTD0': round(ytd_2025_total),
+            'RCD L3M': round(l3m_total),
+            'RCD MES': round(mes_total),
             'DESV. ABS': round(desv_total),
             'REPRES. %': '100%',
-            'DESV. %': f"{round(perc_total)}%"
+            'DESV. %': f"{round(perc_total)}%",
         })
 
-        # Linha Visitado
+        # Linha VISITADO
         resultado.append({
             'Responsável': 'VISITADO',
-            'RCD YTD-1': round(ytd_2024_vis),
-            'RCD YTD0': round(ytd_2025_vis),
+            'RCD L3M': round(l3m_vis),
+            'RCD MES': round(mes_vis),
             'DESV. ABS': round(desv_vis),
             'REPRES. %': f"{round(repres_vis)}%",
-            'DESV. %': f"{round(perc_vis)}%"
+            'DESV. %': f"{round(perc_vis)}%",
         })
 
-        # Linha Não Visitado
+        # Linha NÃO VISITADO
         resultado.append({
             'Responsável': 'NÃO VISITADO',
-            'RCD YTD-1': round(ytd_2024_nao),
-            'RCD YTD0': round(ytd_2025_nao),
+            'RCD L3M': round(l3m_nao),
+            'RCD MES': round(mes_nao),
             'DESV. ABS': round(desv_nao),
             'REPRES. %': f"{round(repres_nao)}%",
-            'DESV. %': f"{round(perc_nao)}%"
+            'DESV. %': f"{round(perc_nao)}%",
         })
-        
+
     return pd.DataFrame(resultado)
+
 
 def calcular_desvio_percentual(valor_atual, media_l3m):
     return round(((valor_atual - media_l3m) / media_l3m * 100), 2) if media_l3m != 0 else 0
+
 
 def calcular_kpis(dados_ago, dados_l3m):
     # Calcula os valores principais
@@ -119,16 +135,19 @@ def calcular_tabela_por_grupo_agrupado(df_ago_total, df_l3m_total, df_ago_visita
 
     # Lista de responsáveis únicos
     responsaveis = df_ago_total[coluna_responsavel].unique()
+
     for responsavel in responsaveis:
         # Adiciona linha do responsável
         resultado.append({'Responsável': responsavel})
 
         # Provedores desse responsável
-        provedores = df_ago_total[df_ago_total[coluna_responsavel] == responsavel][coluna_grupo].unique()
+        provedores = df_ago_total[(df_ago_total[coluna_responsavel] == responsavel)][coluna_grupo].unique()
+
         for grupo in provedores:
             # Linha do grupo (total)
             dados_ago_grupo = df_ago_total[(df_ago_total[coluna_grupo] == grupo) & (df_ago_total[coluna_responsavel] == responsavel)]
             dados_l3m_grupo = df_l3m_total[(df_l3m_total[coluna_grupo] == grupo) & (df_l3m_total[coluna_responsavel] == responsavel)]
+
             kpis_total = calcular_kpis(dados_ago_grupo, dados_l3m_grupo)
             kpis_total['Responsável'] = grupo
             resultado.append(kpis_total)
@@ -136,6 +155,7 @@ def calcular_tabela_por_grupo_agrupado(df_ago_total, df_l3m_total, df_ago_visita
             # Linha VISITADO
             dados_ago_vis = df_ago_visitado[(df_ago_visitado[coluna_grupo] == grupo) & (df_ago_visitado[coluna_responsavel] == responsavel)]
             dados_l3m_vis = df_l3m_visitado[(df_l3m_visitado[coluna_grupo] == grupo) & (df_l3m_visitado[coluna_responsavel] == responsavel)]
+
             kpis_vis = calcular_kpis(dados_ago_vis, dados_l3m_vis)
             kpis_vis['Responsável'] = 'VISITADO'
             resultado.append(kpis_vis)
@@ -143,6 +163,7 @@ def calcular_tabela_por_grupo_agrupado(df_ago_total, df_l3m_total, df_ago_visita
             # Linha NÃO VISITADO
             dados_ago_nao = df_ago_nvisitado[(df_ago_nvisitado[coluna_grupo] == grupo) & (df_ago_nvisitado[coluna_responsavel] == responsavel)]
             dados_l3m_nao = df_l3m_nvisitado[(df_l3m_nvisitado[coluna_grupo] == grupo) & (df_l3m_nvisitado[coluna_responsavel] == responsavel)]
+
             kpis_nao = calcular_kpis(dados_ago_nao, dados_l3m_nao)
             kpis_nao['Responsável'] = 'NÃO VISITADO'
             resultado.append(kpis_nao)
@@ -164,14 +185,18 @@ def calcular_tabela_por_grupo_agrupado(df_ago_total, df_l3m_total, df_ago_visita
         'P. MÉDIO AGO/25',
         'DESV. % (P. MÉDIO L3M)'
     ]
-    df_final = df_final[colunas_ordenadas]
 
+    df_final = df_final[colunas_ordenadas]
     return df_final
+
+
 if __name__ == "__main__":
     load_dotenv()
+
     username = os.getenv("USERNAME")
     coluna_nome = os.getenv("COLUNA_NOME")
     coluna_grupo = os.getenv("COLUNA_GRUPO")
+
     downloads_folder = f"C:\\Users\\{username}\\Downloads"
     rt_folder = os.path.join(downloads_folder, "RT")
 
@@ -179,39 +204,43 @@ if __name__ == "__main__":
     if len(bookmark_names) != 3:
         raise ValueError("A variável BOOKMARKS no .env deve conter exatamente 3 nomes separados por vírgula.")
 
-
     path_total = os.path.join(downloads_folder, bookmark_names[0])
     path_visitado = os.path.join(downloads_folder, bookmark_names[1])
     path_nao_visitado = os.path.join(downloads_folder, bookmark_names[2])
 
     # Carregar os dados
-    
     df_total = pd.read_excel(path_total, skiprows=2, engine="openpyxl")
     df_visitado = pd.read_excel(path_visitado, skiprows=2, engine="openpyxl")
     df_nao_visitado = pd.read_excel(path_nao_visitado, skiprows=2, engine="openpyxl")
 
- # Padronizar datas
+    # Padronizar datas
     for df in [df_total, df_visitado, df_nao_visitado]:
         df['Mes/Ano'] = pd.to_datetime(df['Mes/Ano'])
         df['Ano'] = df['Mes/Ano'].dt.year
         df['Mes'] = df['Mes/Ano'].dt.month
 
- # Solicita o mês limite ao usuário
+    # Solicita o mês limite ao usuário
     mes_limite = int(input("Informe o mês limite (número de 1 a 12): "))
-    meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+
+    meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite - 1]
+
     df_ago_total = df_total[(df_total['Ano'] == 2025) & (df_total['Mes'] == mes_limite)]
     df_l3m_total = df_total[(df_total['Ano'] == 2025) & (df_total['Mes'].isin(meses_l3m))]
+
     df_ago_visitado = df_visitado[(df_visitado['Ano'] == 2025) & (df_visitado['Mes'] == mes_limite)]
     df_l3m_visitado = df_visitado[(df_visitado['Ano'] == 2025) & (df_visitado['Mes'].isin(meses_l3m))]
+
     df_ago_nvisitado = df_nao_visitado[(df_nao_visitado['Ano'] == 2025) & (df_nao_visitado['Mes'] == mes_limite)]
     df_l3m_nvisitado = df_nao_visitado[(df_nao_visitado['Ano'] == 2025) & (df_nao_visitado['Mes'].isin(meses_l3m))]
 
-    df_resultado = calcular_sellin_ytd(df_total,df_nao_visitado,df_visitado,mes_limite)
-        # Salvar em Excel
-    df_resultado.to_excel(os.path.join(rt_folder, f"{coluna_nome}_resultado_sellin_ytd.xlsx"), index=False)
-    print("Arquivo 'resultado_sellin_ytd.xlsx' gerado com sucesso.")
+    # === SELL-IN por responsável (L3M) ===
+    df_resultado = calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite)
 
-    # Chamada da função KPIs por grupo na ordem correta
+    # Salvar em Excel
+    df_resultado.to_excel(os.path.join(rt_folder, f"{coluna_nome}_resultado_sellin_l3m.xlsx"), index=False)
+    print("Arquivo 'resultado_sellin_l3m.xlsx' gerado com sucesso.")
+
+    # === KPIs por grupo (na mesma ordem do tratamento.py) ===
     df_resultado_kpis_grupo = calcular_tabela_por_grupo_agrupado(
         df_ago_total, df_l3m_total,
         df_ago_visitado, df_l3m_visitado,
