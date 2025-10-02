@@ -163,7 +163,7 @@ def main(mes_limite):
             })
         df_resultado = pd.DataFrame(resultado)
         # Ordena por RCD YTDO e pega os 7 maiores
-        df_top7 = df_resultado.sort_values(by='RCD MES', ascending=False).head(7)
+        df_top7 = df_resultado.sort_values(by='RCD MES', ascending=False).head(8)
         # Soma total geral
         total_geral = df_resultado[['RCD L3M', 'RCD MES', 'DESV. ABS']].sum()
         total_geral['DESV. %'] = ((total_geral['DESV. ABS'] / total_geral['RCD L3M']) * 100) if total_geral['RCD L3M'] != 0 else 0
@@ -222,7 +222,7 @@ def main(mes_limite):
         df_top7 = pd.DataFrame(resultado)
         
         # Ordena por RCD YTDO e pega os 7 maiores
-        df_top7 = df_top7.sort_values(by='DEM. PPP AGO/25', ascending=False).head(7)
+        df_top7 = df_top7.sort_values(by='DEM. PPP AGO/25', ascending=False).head(8)
         # OUTROS: média dos grupos que não estão no TOP7
         grupos_outros = set(dados_ago[coluna_grupo].unique()) - set(grupos_top7)
         if grupos_outros:
@@ -332,14 +332,14 @@ def main(mes_limite):
         ultima_linha = ws.max_row
 
         # Colunas B, C => separador de milhar, sem decimais
-        for col in ('B', 'C'):
+        for col in ('B'):
             for row in range(2, ultima_linha + 1):  # pula o cabeçalho
                 cell = ws[f'{col}{row}']
                 if cell.value is not None and cell.value != "":
                     cell.number_format = formato_milhar
 
         # Colunas D, F, H, J, L => número seguido de % (sem mudar a escala)
-        for col in ('D', 'F', 'H', 'J', 'L'):
+        for col in ('C','D', 'F', 'H', 'J', 'L'):
             for row in range(2, ultima_linha + 1):
                 cell = ws[f'{col}{row}']
                 if cell.value is not None and cell.value != "":
