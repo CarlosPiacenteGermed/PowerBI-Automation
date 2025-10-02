@@ -208,6 +208,7 @@ def main(mes_limite):
                 '': grupo,
                 'DEM. PPP AGO/25': round(ppp_ago),
                 'DESV. % (PPP L3M)': round(desv_ppp, 1),
+                ' ': '',  # coluna vazia como separador
                 'POSITIV. AGO/25': round(positiv_ago),
                 'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
                 'GIRO AGO/25': round(giro_ago, 1),
@@ -218,6 +219,9 @@ def main(mes_limite):
                 'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
             })
         df_top7 = pd.DataFrame(resultado)
+        
+        # Ordena por RCD YTDO e pega os 7 maiores
+        df_top7 = df_top7.sort_values(by='DEM. PPP AGO/25', ascending=False).head(7)
         # OUTROS: média dos grupos que não estão no TOP7
         grupos_outros = set(dados_ago[coluna_grupo].unique()) - set(grupos_top7)
         if grupos_outros:
@@ -263,6 +267,7 @@ def main(mes_limite):
             '': 'TOTAL',
             'DEM. PPP AGO/25': df_top7['DEM. PPP AGO/25'].sum(),
             'DESV. % (PPP L3M)': round(df_top7['DESV. % (PPP L3M)'].mean(), 2),
+            ' ': '',  # coluna vazia como separador
             'POSITIV. AGO/25': round(df_top7['POSITIV. AGO/25'].mean(), 2),
             'DESV. % (POSITIV L3M)': round(df_top7['DESV. % (POSITIV L3M)'].mean(), 2),
             'GIRO AGO/25': round(df_top7['GIRO AGO/25'].mean(), 2),
