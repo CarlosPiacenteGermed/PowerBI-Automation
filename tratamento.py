@@ -114,8 +114,8 @@ def main(mes_limite):
             resultado.append({
                 '': nome_final,
                 'DEM. PPP MES/25': round(ppp_ago),
-                'DESV. ABS. PPP': round(desv_ppp_abs),
                 'DESV. % (PPP L3M)': round(desv_ppp, 1),
+                ' ': '',  # coluna separadora
                 'POSITIV. MES/25': round(positiv_ago),
                 'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
                 'GIRO MES/25': round(giro_ago, 1),
