@@ -471,14 +471,14 @@ def main(mes_limite):
     ultima_linha = ws.max_row
 
     # Colunas B, C => separador de milhar, sem decimais
-    for col in ('B', 'C'):
+    for col in ('B'):
         for row in range(2, ultima_linha + 1):  # pula o cabeçalho
             cell = ws[f'{col}{row}']
             if cell.value is not None and cell.value != "":
                 cell.number_format = formato_milhar
 
     # Colunas D, F, H, J, L => número seguido de % (sem mudar a escala)
-    for col in ('D', 'F', 'H', 'J', 'L'):
+    for col in ('C', 'F', 'H', 'J', 'L'):
         for row in range(2, ultima_linha + 1):
             cell = ws[f'{col}{row}']
             if cell.value is not None and cell.value != "":
