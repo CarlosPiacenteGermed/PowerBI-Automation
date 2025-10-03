@@ -1,0 +1,413 @@
+import pandas as pd
+import os
+from dotenv import load_dotenv
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+import numpy as np
+from typing import Dict, List
+
+
+load_dotenv()
+username = os.getenv("USERNAME")
+
+# Caminho da pasta Downloads e RT
+downloads_folder = f"C:\\Users\\{username}\\Downloads"
+rt_folder = os.path.join(downloads_folder, "RT")
+os.makedirs(rt_folder, exist_ok=True)  # Cria a pasta RT se não existir
+
+# Caminhos dos arquivos
+bookmark_names = [name.strip() + ".xlsx" for name in os.getenv("BOOKMARKS_META", "").split(",") if name.strip()]
+if len(bookmark_names) != 2:
+    raise ValueError("A variável BOOKMARKS no .env deve conter exatamente 3 nomes separados por vírgula.")
+
+path_sem_ge = os.path.join(downloads_folder, bookmark_names[0])
+path_metas = os.path.join(downloads_folder, bookmark_names[1])
+
+df_sem_ge = pd.read_excel(path_sem_ge, skiprows=2, engine="openpyxl")
+df_metas = pd.read_excel(path_metas, skiprows=2, engine="openpyxl")
+
+
+
+ #========= Helpers =========
+
+def _ensure_columns(df: pd.DataFrame, cols: List[str], ctx: str = ""):
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise KeyError(f"As colunas {missing} não foram encontradas no DataFrame {ctx}.")
+
+def _coerce_numeric(df: pd.DataFrame, cols: List[str]):
+    """
+    Converte colunas para numérico (robusto para formatações BR, símbolos e pontuações).
+    """
+    for c in cols:
+        if c in df.columns:
+            if pd.api.types.is_numeric_dtype(df[c]):
+                continue
+            s = df[c].astype(str)
+            s = s.str.replace(r"[^\d\-,.\(\)]", "", regex=True)
+            s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+            s = s.str.replace(r"^\((.*)\)$", r"-\1", regex=True)
+            df[c] = pd.to_numeric(s, errors="coerce")
+
+def _coverage(real: pd.Series, meta: pd.Series) -> pd.Series:
+    """
+    Retorna uma Series (alinhada ao índice) com Cobertura = Real/Meta quando Meta != 0, senão NaN.
+    """
+    real = pd.to_numeric(real, errors="coerce")
+    meta = pd.to_numeric(meta, errors="coerce")
+    cobertura = real.divide(meta)*100
+    cobertura = cobertura.where(meta.ne(0) & meta.notna(), np.nan)
+    return cobertura
+
+# ========= Configuração dos nomes de colunas =========
+
+CATEGORIAS = {
+    "OL": {
+        "meta": "($)META_OL",
+        "real": "($)OL",
+        "componentes": ["MERCANET", "PHARMALINK"],  # se ($)OL não existir, somamos estes
+        "delta": "'Medidas'[($)OLDelta]",
+        "cobertura": "(%)_OL",
+    },
+    "PPP_TOTAL": {
+        "meta": "($)META_PPP",
+        "real": "PPP",
+        "delta": "'Medidas'[($)DeltaMDTRAssoc]",
+        "cobertura": "(%)_PPP",
+    },
+    "PPP_N_COMBATE": {
+        "meta": "'Medidas'[($)META_PPP_N_COMBATE_SO]",
+        "real": "N COMBATE",
+        "delta": "'Medidas'[($)Delta_N_Combate_SO]",
+        "cobertura": "'Medidas'[(%)COB_N_COMBATE_SO]",
+    },
+    "PPP_COMBATE": {
+        "meta": "'Medidas'[($)META_PPP_COMBATE_SO]",
+        "real": "COMBATE",
+        "delta": "'Medidas'[($)DeltaCombate_SO]",
+        "cobertura": "'Medidas'[(%)COB_COMBATE_SO]",
+    },
+    "PPP_MIX": {
+        "meta": "($)META_PPP_MIX",
+        "real": "MIX",
+        "delta": "'Medidas'[($)DemandaDeltaMixFocoAssoc]",
+        "cobertura": "(%)_PPP_MIX",
+    },
+    "PPP_LANC": {
+        "meta": "($)META_PPP_LAN",
+        "real": "LANÇ",
+        "delta": "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]",
+        "cobertura": "(%)_PPP_LAN",
+    },
+}
+
+BASE_COL_ORDER = [
+    "NOME GD", "NOME REP",
+    "($)META_OL","($)OL",
+    "'Medidas'[($)OLDelta]", "(%)_OL",
+    "($)META_PPP", "PPP", "'Medidas'[($)DeltaMDTRAssoc]", "(%)_PPP",
+    "($)META_PPP_MIX", "MIX", "'Medidas'[($)DemandaDeltaMixFocoAssoc]", "(%)_PPP_MIX",
+    "($)META_PPP_LAN", "LANÇ", "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]", "(%)_PPP_LAN",
+]
+
+def build_tabela_base(df_sem_ge: pd.DataFrame) -> pd.DataFrame:
+    out = df_sem_ge.copy()
+
+    # Cria ($)OL a partir de MERCANET+PHARMALINK se necessário
+    cat_ol = CATEGORIAS["OL"]
+    if cat_ol["real"] not in out.columns:
+        comps = [c for c in cat_ol.get("componentes", []) if c in out.columns]
+        if len(comps) == 2:
+            _coerce_numeric(out, comps)
+            out[cat_ol["real"]] = out[comps[0]].fillna(0) + out[comps[1]].fillna(0)
+
+    # Converte numérico
+    possiveis_numericas = set()
+    for cfg in CATEGORIAS.values():
+        possiveis_numericas.update([
+            cfg.get("meta", ""), cfg.get("real", ""),
+            cfg.get("delta", ""), cfg.get("cobertura", "")
+        ])
+        for comp in cfg.get("componentes", []):
+            possiveis_numericas.add(comp)
+    possiveis_numericas = [c for c in possiveis_numericas if c and c in out.columns]
+    _coerce_numeric(out, possiveis_numericas)
+
+    # Calcula deltas/coberturas ausentes
+    for cfg in CATEGORIAS.values():
+        meta_col, real_col = cfg["meta"], cfg["real"]
+        delta_col, cob_col = cfg["delta"], cfg["cobertura"]
+        if meta_col not in out.columns or real_col not in out.columns:
+            continue
+        if delta_col not in out.columns:
+            out[delta_col] = out[real_col].fillna(0) - out[meta_col].fillna(0)
+        if cob_col not in out.columns:
+            out[cob_col] = _coverage(out[real_col], out[meta_col])
+
+    for comp_col in ["MERCANET", "PHARMALINK"]:
+        if comp_col not in out.columns:
+            out[comp_col] = np.nan
+
+    # Colunas obrigatórias
+    for c in ["NOME GD", "NOME REP"]:
+        if c not in out.columns:
+            raise KeyError(f"A coluna obrigatória '{c}' não está presente após o preparo.")
+
+    # Garante layout
+    for col in BASE_COL_ORDER:
+        if col not in out.columns:
+            out[col] = np.nan
+
+    out = out[BASE_COL_ORDER]
+    return out
+
+# ========= Tabelas finais =========
+
+def _agg_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    """
+    Agrega por grupo (GD ou REP) gerando somatórios para metas/real das 4 categorias pedidas.
+    Retorna um DF com colunas: META/REAL de cada categoria.
+    """
+    cat_cols = {
+        "Demanda PPP": ("($)META_PPP", "PPP"),
+        "Lançamentos": ("($)META_PPP_LAN", "LANÇ"),
+        "Mix Foco": ("($)META_PPP_MIX", "MIX"),
+        "OL": ("($)META_OL", "($)OL"),
+    }
+
+    numeric_cols = []
+    for meta_col, real_col in cat_cols.values():
+        if meta_col in tabela_base.columns: numeric_cols.append(meta_col)
+        if real_col in tabela_base.columns: numeric_cols.append(real_col)
+    _coerce_numeric(tabela_base, numeric_cols)
+
+    agg_dict = {}
+    for meta_col, real_col in cat_cols.values():
+        if meta_col in tabela_base.columns:
+            agg_dict[meta_col] = "sum"
+        if real_col in tabela_base.columns:
+            agg_dict[real_col] = "sum"
+
+    agg = tabela_base.groupby(group_col, dropna=False).agg(agg_dict)
+
+    # Garante colunas mesmo se não existirem na origem
+    for nome_cat, (meta_col, real_col) in cat_cols.items():
+        if meta_col not in agg.columns: agg[meta_col] = np.nan
+        if real_col not in agg.columns: agg[real_col] = np.nan
+
+    return agg
+
+def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    """
+    Retorna matriz no layout solicitado:
+      - Colunas: ['Demanda PPP','Lançamentos','Mix Foco','OL']
+      - Linhas: para cada grupo (GD ou REP), 3 linhas: ['Objetivo (Meta)', 'Real', 'Cobertura']
+    """
+    agg = _agg_por_grupo(tabela_base, group_col=group_col)
+    cat_cols = {
+        "Demanda PPP": ("($)META_PPP", "PPP"),
+        "Lançamentos": ("($)META_PPP_LAN", "LANÇ"),
+        "Mix Foco": ("($)META_PPP_MIX", "MIX"),
+        "OL": ("($)META_OL", "($)OL"),
+    }
+
+    # Monta um DF com colunas MultiIndex (Categoria, Métrica)
+    frames = []
+    for nome_cat, (meta_col, real_col) in cat_cols.items():
+        objetivo = agg[meta_col]
+        real = agg[real_col]
+        cob = _coverage(real, objetivo)
+
+        bloco = pd.concat(
+            {
+                (nome_cat, "Objetivo (Meta)"): objetivo,
+                (nome_cat, "Real"): real,
+                (nome_cat, "Cobertura"): cob,
+            },
+            axis=1,
+        )
+        frames.append(bloco)
+
+    wide = pd.concat(frames, axis=1)
+
+    # Reordena colunas de categoria e métricas
+    wide = wide.reindex(
+        columns=pd.MultiIndex.from_product(
+            [["Demanda PPP", "Lançamentos", "Mix Foco", "OL"], ["Objetivo (Meta)", "Real", "Cobertura"]]
+        )
+    )
+
+    # Transforma as métricas em linhas (stack do nível 1 das colunas)
+    out = wide.stack(level=1, future_stack=True)  # index -> (group_col, 'Linha'); columns -> categorias
+    out.index = out.index.set_names([group_col, "Linha"])
+    return out
+
+def build_metas_total_gd(tabela_base: pd.DataFrame) -> pd.DataFrame:
+    """Matriz por GD no layout solicitado."""
+    _ensure_columns(tabela_base, ["NOME GD"], "tabela_base")
+    return build_matriz_por_grupo(tabela_base, group_col="NOME GD")
+
+def build_metas_gr_completa(tabela_base: pd.DataFrame) -> pd.DataFrame:
+    """Matriz por Representante (GR) no layout solicitado."""
+    _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
+    return build_matriz_por_grupo(tabela_base, group_col="NOME REP")
+
+def build_metas_gr_ppp(tabela_base: pd.DataFrame) -> pd.DataFrame:
+    """
+    METAS GR (por representante), somente PPP:
+    - Colunas: META PPP, Demanda PPP, Desv. Abs., Cobertura
+    - Índice: NOME REP
+    """
+    _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
+
+    cols_need = []
+    if "($)META_PPP" in tabela_base.columns: cols_need.append("($)META_PPP")
+    if "PPP" in tabela_base.columns: cols_need.append("PPP")
+    _coerce_numeric(tabela_base, cols_need)
+
+    agg = (
+        tabela_base.groupby("NOME REP", dropna=False)
+        .agg({"($)META_PPP": "sum", "PPP": "sum"})
+        .rename(columns={"($)META_PPP": "META PPP", "PPP": "Demanda PPP"})
+    )
+    # Se alguma coluna não existir no DF original, garante no agregado:
+    for col in ["META PPP", "Demanda PPP"]:
+        if col not in agg.columns:
+            agg[col] = np.nan
+
+    agg["Desv. Abs."] = agg["Demanda PPP"] - agg["META PPP"]
+    agg["Cobertura"] = _coverage(agg["Demanda PPP"], agg["META PPP"])
+    agg = agg[["META PPP", "Demanda PPP", "Desv. Abs.", "Cobertura"]]
+    return agg
+
+# ========= Execução: preparar df_sem_ge e gerar as tabelas =========
+
+
+# 2) Tabela base com todas as colunas/deltas/coberturas
+tabela_base = build_tabela_base(df_sem_ge)
+
+# 3) As três saídas exatamente no layout pedido
+metas_total_gd = build_metas_total_gd(tabela_base)          # Index: (NOME GD, Linha) | Colunas: categorias
+metas_gr = build_metas_gr_ppp(tabela_base)                  # Index: NOME REP       | Colunas: PPP
+metas_gr_completa = build_metas_gr_completa(tabela_base)    # Index: (NOME REP, Linha) | Colunas: categorias
+
+# 4) Salvar em Excel (pasta RT)
+out_path = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
+with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+    tabela_base.to_excel(writer, sheet_name="BASE_METAS", index=False)
+    metas_total_gd.to_excel(writer, sheet_name="METAS_TOTAL_GD")        # tem índice MultiIndex (NOME GD, Linha)
+    metas_gr.to_excel(writer, sheet_name="METAS_GR")                    # índice: NOME REP
+    metas_gr_completa.to_excel(writer, sheet_name="METAS_GR_COMPLETA") 
+
+print(f"Arquivos salvos em: {out_path}")
+
+ #Caminho do arquivo gerado anteriormente
+arquivo_metas = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
+
+arquivo_metas = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
+
+# Formatos
+formato_milhar        = '#,##0'    # → X.XXX.XXX (sem casas decimais)
+formato_percent_ratio = '0.0%'     # → XX,X% quando o VALOR está entre 0 e 1 (ex.: 0,729)
+formato_percent_abs   = '0.0"%"'   # → XX,X% quando o VALOR já está entre 0 e 100 (ex.: 72,9)
+
+wb = load_workbook(arquivo_metas)
+
+def _fmt_percent_por_valor(cell):
+    """
+    Se o valor estiver em [0, 1.0001] → usar '0.0%'
+    Se o valor > 1 → usar '0.0"%"' (não escala)
+    Obs.: tolerância pequena por conta de arredondamentos.
+    """
+    v = cell.value
+    if isinstance(v, (int, float)):
+        if 0 <= v <= 1.0001:
+            cell.number_format = formato_percent_ratio   # 0.0%  (escala por 100)
+        else:
+            cell.number_format = formato_percent_abs     # 0.0"%" (não escala)
+    else:
+        # Se for vazio ou string, apenas define o formato desejado
+        cell.number_format = formato_percent_abs
+
+# ----------------------------------------------------
+# 1) METAS_TOTAL_GD: Col A = NOME GD | Col B = Linha | Col C.. = categorias
+# ----------------------------------------------------
+if 'METAS_TOTAL_GD' in wb.sheetnames:
+    ws = wb['METAS_TOTAL_GD']
+    ultima_linha = ws.max_row
+    ultima_coluna = ws.max_column
+
+    cols_categorias = [get_column_letter(c) for c in range(3, ultima_coluna + 1)]
+
+    for row in range(2, ultima_linha + 1):  # pula cabeçalho
+        linha_val = ws[f'B{row}'].value
+        linha_norm = (str(linha_val).strip().lower() if linha_val is not None else '')
+        is_cobertura = (linha_norm == 'cobertura')
+
+        for col in cols_categorias:
+            cell = ws[f'{col}{row}']
+            if cell.value is None or cell.value == "":
+                continue
+            if is_cobertura:
+                _fmt_percent_por_valor(cell)      # ↩️ autodetecta 0–1 vs 0–100
+            else:
+                cell.number_format = formato_milhar
+
+# ----------------------------------------------------
+# 2) METAS_GR_COMPLETA: Col A = NOME REP | Col B = Linha | Col C.. = categorias
+# ----------------------------------------------------
+if 'METAS_GR_COMPLETA' in wb.sheetnames:
+    ws = wb['METAS_GR_COMPLETA']
+    ultima_linha = ws.max_row
+    ultima_coluna = ws.max_column
+
+    cols_categorias = [get_column_letter(c) for c in range(3, ultima_coluna + 1)]
+
+    for row in range(2, ultima_linha + 1):
+        linha_val = ws[f'B{row}'].value
+        linha_norm = (str(linha_val).strip().lower() if linha_val is not None else '')
+        is_cobertura = (linha_norm == 'cobertura')
+
+        for col in cols_categorias:
+            cell = ws[f'{col}{row}']
+            if cell.value is None or cell.value == "":
+                continue
+            if is_cobertura:
+                _fmt_percent_por_valor(cell)
+            else:
+                cell.number_format = formato_milhar
+
+# ----------------------------------------------------
+# 3) METAS_GR: Col A = NOME REP | Depois: META PPP, Demanda PPP, Desv. Abs., Cobertura
+# ----------------------------------------------------
+if 'METAS_GR' in wb.sheetnames:
+    ws = wb['METAS_GR']
+    ultima_linha = ws.max_row
+    ultima_coluna = ws.max_column
+
+    # Mapa de cabeçalhos
+    header_to_col = {}
+    for c in range(1, ultima_coluna + 1):
+        letra = get_column_letter(c)
+        header = ws[f'{letra}1'].value
+        header_to_col[header] = letra
+
+    # Milhar nas colunas numéricas
+    for nome_col in ['META PPP', 'Demanda PPP', 'Desv. Abs.']:
+        col_letter = header_to_col.get(nome_col)
+        if col_letter:
+            for row in range(2, ultima_linha + 1):
+                cell = ws[f'{col_letter}{row}']
+                if cell.value is not None and cell.value != "":
+                    cell.number_format = formato_milhar
+
+    # Cobertura com autodetecção de escala
+    col_cov = header_to_col.get('Cobertura')
+    if col_cov:
+        for row in range(2, ultima_linha + 1):
+            cell = ws[f'{col_cov}{row}']
+            if cell.value is not None and cell.value != "":
+                _fmt_percent_por_valor(cell)
+
+wb.save(arquivo_metas)
+print(f"Arquivo formatado: {arquivo_metas}")
