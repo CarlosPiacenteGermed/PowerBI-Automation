@@ -257,6 +257,7 @@ def build_metas_gr_ppp(tabela_base: pd.DataFrame) -> pd.DataFrame:
     METAS GR (por representante), somente PPP:
     - Colunas: META PPP, Demanda PPP, Desv. Abs., Cobertura
     - Índice: NOME REP
+    - Adiciona linha de total com soma das colunas e cálculo de desvio e cobertura
     """
     _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
 
@@ -270,7 +271,6 @@ def build_metas_gr_ppp(tabela_base: pd.DataFrame) -> pd.DataFrame:
         .agg({"($)META_PPP": "sum", "PPP": "sum"})
         .rename(columns={"($)META_PPP": "META PPP", "PPP": "Demanda PPP"})
     )
-    # Se alguma coluna não existir no DF original, garante no agregado:
     for col in ["META PPP", "Demanda PPP"]:
         if col not in agg.columns:
             agg[col] = np.nan
@@ -278,13 +278,93 @@ def build_metas_gr_ppp(tabela_base: pd.DataFrame) -> pd.DataFrame:
     agg["Desv. Abs."] = agg["Demanda PPP"] - agg["META PPP"]
     agg["Cobertura"] = _coverage(agg["Demanda PPP"], agg["META PPP"])
     agg = agg[["META PPP", "Demanda PPP", "Desv. Abs.", "Cobertura"]]
+
+    # Adiciona linha de total
+    total_meta = agg["META PPP"].sum()
+    total_demanda = agg["Demanda PPP"].sum()
+    total_desvio = total_demanda - total_meta
+    total_cobertura = (total_demanda/total_meta)*100
+
+    total_row = pd.DataFrame({
+        "META PPP": [total_meta],
+        "Demanda PPP": [total_demanda],
+        "Desv. Abs.": [total_desvio],
+        "Cobertura": [total_cobertura]
+    }, index=["TOTAL"])
+
+    agg = pd.concat([agg, total_row])
+
     return agg
+
+def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
+    """
+    Gera, para cada representante (NOME REP), um DataFrame com:
+      - Top 7 grupos na ordem vinda do Excel (order_map)
+      - Linha 'Outros' (soma do restante)
+      - Linha 'TOTAL'
+      - COB% recalculado no final
+
+    Observação: usa a função `_coverage(dem, meta)` já existente no seu código.
+    """
+    # Renomeios e conversões como no seu código original
+    df = df.rename(columns={"($)META_PPP": "META PPP AGO/25", "PPP": "DEM. PPP"})
+    df["META PPP AGO/25"] = pd.to_numeric(df["META PPP AGO/25"], errors="coerce")
+    df["DEM. PPP"]       = pd.to_numeric(df["DEM. PPP"], errors="coerce")
+
+    resultado = {}
+
+    for rep, grupo_rep in df.groupby("NOME REP"):
+        # Agrega por grupo econômico
+        grupo_agg = grupo_rep.groupby("GRUPO ECONOMICO", as_index=True).agg({
+            "META PPP AGO/25": "sum",
+            "DEM. PPP": "sum"
+        })
+
+        # Métricas derivadas
+        grupo_agg["DESV. ABS"] = grupo_agg["DEM. PPP"] - grupo_agg["META PPP AGO/25"]
+        grupo_agg["COB%"] = _coverage(grupo_agg["DEM. PPP"], grupo_agg["META PPP AGO/25"])
+
+       
+            # Fallback: mantém seu comportamento atual
+        grupo_agg = grupo_agg.sort_values(by="DEM. PPP", ascending=False)
+
+        # === Top7 + Outros + Total ===
+        if len(grupo_agg) <= 8:
+            final_df = grupo_agg.copy()
+        else:
+            top7 = grupo_agg.iloc[:7]
+
+            # Apenas colunas numéricas EXCETO 'COB%' para calcular somas
+            numeric_cols = grupo_agg.select_dtypes(include="number").columns.tolist()
+            numeric_cols_no_cob = [c for c in numeric_cols if c != "COB%"]
+
+            total = grupo_agg[numeric_cols_no_cob].sum()
+            soma_top7 = top7[numeric_cols_no_cob].sum()
+
+            outros = (total - soma_top7).to_frame().T
+            outros.index = ["Outros"]
+
+            final_df = pd.concat([top7, outros], axis=0)
+
+            total_final = final_df[numeric_cols_no_cob].sum()
+            linha_total = total_final.to_frame().T
+            linha_total.index = ["TOTAL"]
+
+            final_df = pd.concat([final_df, linha_total], axis=0)
+
+            # Recalcula COB% para todas as linhas do final_df
+            final_df["COB%"] = _coverage(final_df["DEM. PPP"], final_df["META PPP AGO/25"])
+
+        resultado[rep] = final_df
+
+    return resultado
 
 # ========= Execução: preparar df_sem_ge e gerar as tabelas =========
 
 
 # 2) Tabela base com todas as colunas/deltas/coberturas
 tabela_base = build_tabela_base(df_sem_ge)
+tabela_base_metas = build_tabela_base(df_metas)
 
 # 3) As três saídas exatamente no layout pedido
 metas_total_gd = build_metas_total_gd(tabela_base)          # Index: (NOME GD, Linha) | Colunas: categorias
@@ -292,6 +372,18 @@ metas_gr = build_metas_gr_ppp(tabela_base)                  # Index: NOME REP   
 metas_gr_completa = build_metas_gr_completa(tabela_base)    # Index: (NOME REP, Linha) | Colunas: categorias
 
 # 4) Salvar em Excel (pasta RT)
+
+# 5) Exporta METAS_PROCESSADAS_GE com abas por coordenador
+
+top8_por_rep = build_top8_grupo_por_rep(df_metas)
+out_path = os.path.join(rt_folder, "METAS_GRUPO_ECONOMICO_TOP8.xlsx")
+with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+    for rep, df_rep in top8_por_rep.items():
+        aba_nome = str(rep)[:31] if isinstance(rep, str) else "REP"
+        df_rep.to_excel(writer, sheet_name=aba_nome)
+    
+
+
 out_path = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
 with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
     tabela_base.to_excel(writer, sheet_name="BASE_METAS", index=False)
@@ -304,7 +396,6 @@ print(f"Arquivos salvos em: {out_path}")
  #Caminho do arquivo gerado anteriormente
 arquivo_metas = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
 
-arquivo_metas = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
 
 # Formatos
 formato_milhar        = '#,##0'    # → X.XXX.XXX (sem casas decimais)
@@ -411,3 +502,63 @@ if 'METAS_GR' in wb.sheetnames:
 
 wb.save(arquivo_metas)
 print(f"Arquivo formatado: {arquivo_metas}")
+
+# Caminho do arquivo gerado
+arquivo_metas_GE = os.path.join(rt_folder, "METAS_GRUPO_ECONOMICO_TOP8.xlsx")
+
+formato_milhar        = '#,##0'    # → X.XXX.XXX (sem casas decimais)
+formato_percent_ratio = '0.0%'     # → XX,X% quando o VALOR está entre 0 e 1 (ex.: 0,729)
+formato_percent_abs   = '0.0"%"'  
+
+def _fmt_percent_por_valor(cell):
+    """
+    Se o valor estiver em [0, 1.0001] → usar '0.0%'
+    Se o valor > 1 → usar '0.0"%"' (não escala)
+    Obs.: tolerância pequena por conta de arredondamentos.
+    """
+    v = cell.value
+    if isinstance(v, (int, float)):
+        if 0 <= v <= 1.0001:
+            cell.number_format = formato_percent_ratio   # 0.0%  (escala por 100)
+        else:
+            cell.number_format = formato_percent_abs     # 0.0"%" (não escala)
+    else:
+        # Se for vazio ou string, apenas define o formato desejado
+        cell.number_format = formato_percent_abs
+
+# Carrega o arquivo
+wb = load_workbook(arquivo_metas_GE)
+
+# Aplica formatação em todas as abas
+for sheet_name in wb.sheetnames:
+    ws = wb[sheet_name]
+    ultima_linha = ws.max_row
+    ultima_coluna = ws.max_column
+
+    # Mapa de cabeçalhos
+    header_to_col = {}
+    for c in range(1, ultima_coluna + 1):
+        letra = get_column_letter(c)
+        header = ws[f'{letra}1'].value
+        header_to_col[header] = letra
+
+    # Milhar nas colunas numéricas
+    for nome_col in ['META PPP AGO/25', 'DEM. PPP', 'DESV. ABS']:
+        col_letter = header_to_col.get(nome_col)
+        if col_letter:
+            for row in range(2, ultima_linha + 1):
+                cell = ws[f'{col_letter}{row}']
+                if cell.value is not None and cell.value != "":
+                    cell.number_format = formato_milhar
+
+    # Cobertura com autodetecção de escala
+    col_cov = header_to_col.get('COB%')
+    if col_cov:
+        for row in range(2, ultima_linha + 1):
+            cell = ws[f'{col_cov}{row}']
+            if cell.value is not None and cell.value != "":
+                _fmt_percent_por_valor(cell)
+
+# Salva o arquivo
+wb.save(arquivo_metas_GE)
+print(f"Arquivo formatado: {arquivo_metas_GE}")

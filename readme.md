@@ -41,21 +41,6 @@ USERNAME="seu_usuario"
 
 Dê um duplo clique no arquivo `exe` que deseja fazer o tratamento para iniciar o processo.
 
-<!-- ### 4.1 Fazer Login no Power BI
-
-Quando o navegador abrir, faça login normalmente na sua conta do Power BI.
-
-### 4.2 Esperar o sistema concluir a execução completa
-
-Após o login, **não feche o navegador** **não mexa no computador até concluir a extração**.  
-O sistema irá navegar, exportar os dados e processar os arquivos automaticamente.  
-Aguarde até que o script finalize e a janela do navegador seja fechada.
-
---- -->
-
 **Observações:**
 - Todos os arquivos gerados e tratados serão salvos na pasta `C:\Users\SeuUsuario\Downloads\RT`.
 - Se precisar alterar os bookmarks ou o usuário, edite o arquivo `.env` antes de rodar novamente.
-<!-- - Não feche o navegador manualmente durante a execução. -->
-
----
