@@ -312,10 +312,10 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
     df["DEM. PPP"]       = pd.to_numeric(df["DEM. PPP"], errors="coerce")
 
     resultado = {}
-
+    meta_coluna = os.getenv("COLUNA_META")
     for rep, grupo_rep in df.groupby("NOME REP"):
         # Agrega por grupo econômico
-        grupo_agg = grupo_rep.groupby("GRUPO ECONOMICO", as_index=True).agg({
+        grupo_agg = grupo_rep.groupby(meta_coluna, as_index=True).agg({
             "META PPP AGO/25": "sum",
             "DEM. PPP": "sum"
         })
@@ -365,11 +365,33 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
 # 2) Tabela base com todas as colunas/deltas/coberturas
 tabela_base = build_tabela_base(df_sem_ge)
 tabela_base_metas = build_tabela_base(df_metas)
-
+ytd_path = r"C:\Users\c0050485\Downloads\RT\tabela_ytd.xlsx"
+ytd_nomes = pd.read_excel(ytd_path, usecols=[0], skiprows=1, header=None).iloc[:, 0].astype(str).tolist()
 # 3) As três saídas exatamente no layout pedido
 metas_total_gd = build_metas_total_gd(tabela_base)          # Index: (NOME GD, Linha) | Colunas: categorias
 metas_gr = build_metas_gr_ppp(tabela_base)                  # Index: NOME REP       | Colunas: PPP
 metas_gr_completa = build_metas_gr_completa(tabela_base)    # Index: (NOME REP, Linha) | Colunas: categorias
+primeiro_nome_map = {str(nome).split()[0].upper(): nome for nome in metas_gr.index if nome != "TOTAL"}
+ordem_nomes = []
+for primeiro_nome in ytd_nomes:
+    nome_upper = str(primeiro_nome).upper()
+    if nome_upper in primeiro_nome_map:
+        ordem_nomes.append(primeiro_nome_map[nome_upper])
+
+# Adiciona os restantes (que não estão na lista de primeiros nomes)
+restantes = [i for i in metas_gr.index if i not in ordem_nomes and i != "TOTAL"]
+
+# Remove TOTAL antes de reordenar
+if "TOTAL" in metas_gr.index:
+    total_row = metas_gr.loc[["TOTAL"]]
+    metas_gr = metas_gr.drop("TOTAL")
+else:
+    total_row = None
+
+# Reordena e adiciona TOTAL ao final
+metas_gr = metas_gr.loc[ordem_nomes + restantes]
+if total_row is not None:
+    metas_gr = pd.concat([metas_gr, total_row])
 
 # 4) Salvar em Excel (pasta RT)
 
