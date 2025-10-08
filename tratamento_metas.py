@@ -424,6 +424,38 @@ with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
 
 print(f"Arquivos salvos em: {out_path}")
 
+def ajustar_largura_colunas(wb):
+    """
+    Ajusta automaticamente a largura das colunas de todas as abas do workbook.
+    """
+    for ws in wb.worksheets:
+        for col in ws.columns:
+            max_length = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                try:
+                    cell_value = str(cell.value) if cell.value is not None else ""
+                    max_length = max(max_length, len(cell_value))
+                except Exception:
+                    pass
+            adjusted_width = max_length + 2
+            ws.column_dimensions[col_letter].width = adjusted_width
+
+
+
+
+
+out_path = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
+with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+    tabela_base.to_excel(writer, sheet_name="BASE_METAS", index=False)
+    metas_total_gd.to_excel(writer, sheet_name="METAS_TOTAL_GD")
+    metas_gr.to_excel(writer, sheet_name="METAS_GR")
+    metas_gr_completa.to_excel(writer, sheet_name="METAS_GR_COMPLETA")
+
+# Ajusta largura das colunas antes de formatar
+wb = load_workbook(out_path)
+ajustar_largura_colunas(wb)
+wb.save(out_path)
  #Caminho do arquivo gerado anteriormente
 arquivo_metas = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
 
@@ -533,6 +565,18 @@ if 'METAS_GR' in wb.sheetnames:
 
 wb.save(arquivo_metas)
 print(f"Arquivo formatado: {arquivo_metas}")
+
+
+out_path = os.path.join(rt_folder, "METAS_GRUPO_ECONOMICO_TOP8.xlsx")
+with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+    for rep, df_rep in top8_por_rep.items():
+        aba_nome = str(rep)[:31] if isinstance(rep, str) else "REP"
+        df_rep.to_excel(writer, sheet_name=aba_nome)
+
+# Ajusta largura das colunas antes de formatar
+wb = load_workbook(out_path)
+ajustar_largura_colunas(wb)
+wb.save(out_path)
 
 # Caminho do arquivo gerado
 arquivo_metas_GE = os.path.join(rt_folder, "METAS_GRUPO_ECONOMICO_TOP8.xlsx")
