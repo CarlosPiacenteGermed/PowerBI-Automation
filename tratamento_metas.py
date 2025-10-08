@@ -306,35 +306,45 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
 
     Observação: usa a função `_coverage(dem, meta)` já existente no seu código.
     """
-    # Renomeios e conversões como no seu código original
     df = df.rename(columns={"($)META_PPP": "META PPP AGO/25", "PPP": "DEM. PPP"})
     df["META PPP AGO/25"] = pd.to_numeric(df["META PPP AGO/25"], errors="coerce")
-    df["DEM. PPP"]       = pd.to_numeric(df["DEM. PPP"], errors="coerce")
+    df["DEM. PPP"] = pd.to_numeric(df["DEM. PPP"], errors="coerce")
 
     resultado = {}
     meta_coluna = os.getenv("COLUNA_META")
     for rep, grupo_rep in df.groupby("NOME REP"):
-        # Agrega por grupo econômico
+        # Caminho do arquivo YTD do representante
+        ytd_file = os.path.join(
+            r"C:\Users\c0050485\Downloads\RT",
+            f"tabela_top7_YTD_{str(rep).split()[0].upper()}.xlsx"
+        )
+        # Lê a ordem dos grupos da coluna A do arquivo YTD
+        if os.path.exists(ytd_file):
+            try:
+                ordem_grupos = pd.read_excel(ytd_file, usecols=[0], skiprows=1, header=None).iloc[:, 0].astype(str).tolist()
+            except Exception:
+                ordem_grupos = []
+        else:
+            ordem_grupos = []
+
         grupo_agg = grupo_rep.groupby(meta_coluna, as_index=True).agg({
             "META PPP AGO/25": "sum",
             "DEM. PPP": "sum"
         })
 
-        # Métricas derivadas
         grupo_agg["DESV. ABS"] = grupo_agg["DEM. PPP"] - grupo_agg["META PPP AGO/25"]
         grupo_agg["COB%"] = _coverage(grupo_agg["DEM. PPP"], grupo_agg["META PPP AGO/25"])
 
-       
-            # Fallback: mantém seu comportamento atual
-        grupo_agg = grupo_agg.sort_values(by="DEM. PPP", ascending=False)
+        # Ordena conforme ordem_grupos, mantendo os demais ao final
+        grupos_presentes = [g for g in ordem_grupos if g in grupo_agg.index]
+        restantes = [g for g in grupo_agg.index if g not in grupos_presentes]
+        grupo_agg = grupo_agg.loc[grupos_presentes + restantes]
 
         # === Top7 + Outros + Total ===
         if len(grupo_agg) <= 8:
             final_df = grupo_agg.copy()
         else:
             top7 = grupo_agg.iloc[:7]
-
-            # Apenas colunas numéricas EXCETO 'COB%' para calcular somas
             numeric_cols = grupo_agg.select_dtypes(include="number").columns.tolist()
             numeric_cols_no_cob = [c for c in numeric_cols if c != "COB%"]
 
@@ -397,21 +407,20 @@ if total_row is not None:
 
 # 5) Exporta METAS_PROCESSADAS_GE com abas por coordenador
 
-top8_por_rep = build_top8_grupo_por_rep(df_metas)
-out_path = os.path.join(rt_folder, "METAS_GRUPO_ECONOMICO_TOP8.xlsx")
-with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
-    for rep, df_rep in top8_por_rep.items():
-        aba_nome = str(rep)[:31] if isinstance(rep, str) else "REP"
-        df_rep.to_excel(writer, sheet_name=aba_nome)
-    
-
-
 out_path = os.path.join(rt_folder, "METAS_PROCESSADAS.xlsx")
 with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
     tabela_base.to_excel(writer, sheet_name="BASE_METAS", index=False)
     metas_total_gd.to_excel(writer, sheet_name="METAS_TOTAL_GD")        # tem índice MultiIndex (NOME GD, Linha)
     metas_gr.to_excel(writer, sheet_name="METAS_GR")                    # índice: NOME REP
     metas_gr_completa.to_excel(writer, sheet_name="METAS_GR_COMPLETA") 
+
+
+top8_por_rep = build_top8_grupo_por_rep(df_metas)
+out_path = os.path.join(rt_folder, "METAS_GRUPO_ECONOMICO_TOP8.xlsx")
+with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
+    for rep, df_rep in top8_por_rep.items():
+        aba_nome = str(rep)[:31] if isinstance(rep, str) else "REP"
+        df_rep.to_excel(writer, sheet_name=aba_nome)
 
 print(f"Arquivos salvos em: {out_path}")
 
