@@ -315,7 +315,7 @@ def main(mes_limite):
                 dados_l3m_grupo = dados_l3m[dados_l3m[coluna_grupo] == grupo]
                 
 
-                dados_grupo = df_territorio[df_territorio.iloc[:, 0] == grupo]
+                dados_grupo = df_territorio[df_territorio["Nome Gd"] == grupo]
                 ppp_ago = dados_grupo["DMD | OL"].fillna(0).sum()
                 ppp_l3m = dados_grupo["L3M"].fillna(0).mean()
                 desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
@@ -335,7 +335,6 @@ def main(mes_limite):
                 preco_ago = dados_ago_grupo['Preco Médio PPP'].fillna(0).mean()
                 preco_l3m = dados_l3m_grupo['Preco Médio PPP'].fillna(0).mean()
                 desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
-
                 resultado.append({
                     '': grupo,
                     'DEM. OL AGO/25': round(ppp_ago),
@@ -368,7 +367,7 @@ def main(mes_limite):
                 dados_outros_ago = dados_ago[mask_outros_ago]
                 dados_outros_l3m = dados_l3m[mask_outros_l3m]
 
-                ppp_ago_o = dados_outros_ago['DMD | OL'].fillna(0).sum()
+                ppp_ago_o = dados_outros_ago['DEM. OL AGO/25'].fillna(0).sum()
                 ppp_l3m_o = dados_outros_l3m['L3M'].fillna(0).mean()
                 desv_ppp_o = calc_desv_percentual(ppp_ago_o, ppp_l3m_o)
 
