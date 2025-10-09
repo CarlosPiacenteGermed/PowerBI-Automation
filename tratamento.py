@@ -228,163 +228,328 @@ def main(mes_limite):
         return df_final
     
     
-    def calcular_tabela_por_grupo(dados_ago, dados_l3m, grupos_top7, nome_coordenador):
+    def calcular_tabela_por_grupo(dados_ago, dados_l3m, nome_coordenador):
         # Usa variáveis globais: df_coord, coluna_nome, coluna_grupo
         # 'grupos_top7' não é usado; a seleção é feita pela própria função.
-
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        territorio_path = os.getenv("TERRITORIO_PATH" )
+        path_territorio = os.path.join(downloads_folder, territorio_path)
         def calc_desv_percentual(valor_atual, media_l3m):
-            return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m not in [0, None, float('nan')] and media_l3m != 0 else 0
+             return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m not in [0, None, float('nan')] and media_l3m != 0 else 0
+        territorio = False
+        if os.path.isfile(path_territorio):
+            territorio = True
+            # Importa a tabela de território
+            df_territorio = pd.read_excel(path_territorio, skiprows=2,engine="openpyxl")
+            # Filtra os dados para o mês e coordenador
+            
+            
+            # ---- 1) KPIs por grupo (mesma lógica para todos) ----
+            resultado = []
+            for grupo in dados_ago[coluna_grupo].unique():
+                dados_ago_grupo = dados_ago[dados_ago[coluna_grupo] == grupo]
+                dados_l3m_grupo = dados_l3m[dados_l3m[coluna_grupo] == grupo]
+                
 
-        # ---- 1) KPIs por grupo (mesma lógica para todos) ----
-        resultado = []
-        for grupo in dados_ago[coluna_grupo].unique():
-            dados_ago_grupo = dados_ago[dados_ago[coluna_grupo] == grupo]
-            dados_l3m_grupo = dados_l3m[dados_l3m[coluna_grupo] == grupo]
+                dados_grupo = df_territorio[df_territorio.iloc[:, 0] == grupo]
+                ppp_ago = dados_grupo["DMD | OL"].fillna(0).sum()
+                ppp_l3m = dados_grupo["L3M"].fillna(0).mean()
+                desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
-            ppp_ago = dados_ago_grupo['PPP Realizado'].fillna(0).sum()
-            ppp_l3m = dados_l3m_grupo['PPP Realizado'].fillna(0).mean()
-            desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
+                positiv_ago = dados_ago_grupo['Positivação'].fillna(0).mean()
+                positiv_l3m = dados_l3m_grupo['Positivação'].fillna(0).mean()
+                desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
 
-            positiv_ago = dados_ago_grupo['Positivação'].fillna(0).mean()
-            positiv_l3m = dados_l3m_grupo['Positivação'].fillna(0).mean()
-            desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
+                giro_ago = dados_ago_grupo['Giro Médio'].fillna(0).mean()
+                giro_l3m = dados_l3m_grupo['Giro Médio'].fillna(0).mean()
+                desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
 
-            giro_ago = dados_ago_grupo['Giro Médio'].fillna(0).mean()
-            giro_l3m = dados_l3m_grupo['Giro Médio'].fillna(0).mean()
-            desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
+                sku_ago = dados_ago_grupo['SKU-PDV'].fillna(0).mean()
+                sku_l3m = dados_l3m_grupo['SKU-PDV'].fillna(0).mean()
+                desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
 
-            sku_ago = dados_ago_grupo['SKU-PDV'].fillna(0).mean()
-            sku_l3m = dados_l3m_grupo['SKU-PDV'].fillna(0).mean()
-            desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
+                preco_ago = dados_ago_grupo['Preco Médio PPP'].fillna(0).mean()
+                preco_l3m = dados_l3m_grupo['Preco Médio PPP'].fillna(0).mean()
+                desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
 
-            preco_ago = dados_ago_grupo['Preco Médio PPP'].fillna(0).mean()
-            preco_l3m = dados_l3m_grupo['Preco Médio PPP'].fillna(0).mean()
-            desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
+                resultado.append({
+                    '': grupo,
+                    'DEM. OL AGO/25': round(ppp_ago),
+                    'DESV. % (PPP L3M)': round(desv_ppp, 1),
+                    ' ': '',  # coluna separadora
+                    'POSITIV. AGO/25': round(positiv_ago),
+                    'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
+                    'GIRO AGO/25': round(giro_ago, 1),
+                    'DESV. % (GIRO L3M)': round(desv_giro, 1),
+                    'SKU/PDV AGO/25': round(sku_ago),
+                    'DESV. % (SKU L3M)': round(desv_sku, 1),
+                    'P. MÉDIO AGO/25': round(preco_ago, 2),
+                    'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
+                })
+            def calc_desv_percentual(valor_atual, media_l3m):
+                return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m not in [0, None, float('nan')] and media_l3m != 0 else 0
+            df_grupos = pd.DataFrame(resultado).sort_values(by='DEM. OL AGO/25', ascending=False).reset_index(drop=True)
+            n_groups = len(df_grupos)
 
-            resultado.append({
-                '': grupo,
-                'DEM. PPP AGO/25': round(ppp_ago),
-                'DESV. % (PPP L3M)': round(desv_ppp, 1),
-                ' ': '',  # coluna separadora
-                'POSITIV. AGO/25': round(positiv_ago),
-                'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
-                'GIRO AGO/25': round(giro_ago, 1),
-                'DESV. % (GIRO L3M)': round(desv_giro, 1),
-                'SKU/PDV AGO/25': round(sku_ago),
-                'DESV. % (SKU L3M)': round(desv_sku, 1),
-                'P. MÉDIO AGO/25': round(preco_ago, 2),
-                'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
-            })
+            # ---- 2) Seleção TOP e cálculo de OUTROS conforme regra ----
+            if n_groups > 8:
+                # TOP 7
+                df_top7 = df_grupos.head(7).copy()
+                grupos_top7_calc = set(df_top7[''].tolist())
 
-        df_grupos = pd.DataFrame(resultado).sort_values(by='DEM. PPP AGO/25', ascending=False).reset_index(drop=True)
-        n_groups = len(df_grupos)
+                # Conjunto OUTROS com a MESMA lógica dos grupos (usando os dados brutos desses grupos)
+                mask_outros_ago = ~dados_ago[coluna_grupo].isin(grupos_top7_calc)
+                mask_outros_l3m = ~dados_l3m[coluna_grupo].isin(grupos_top7_calc)
 
-        # ---- 2) Seleção TOP e cálculo de OUTROS conforme regra ----
-        if n_groups > 8:
-            # TOP 7
-            df_top7 = df_grupos.head(7).copy()
-            grupos_top7_calc = set(df_top7[''].tolist())
+                dados_outros_ago = dados_ago[mask_outros_ago]
+                dados_outros_l3m = dados_l3m[mask_outros_l3m]
 
-            # Conjunto OUTROS com a MESMA lógica dos grupos (usando os dados brutos desses grupos)
-            mask_outros_ago = ~dados_ago[coluna_grupo].isin(grupos_top7_calc)
-            mask_outros_l3m = ~dados_l3m[coluna_grupo].isin(grupos_top7_calc)
+                ppp_ago_o = dados_outros_ago['DMD | OL'].fillna(0).sum()
+                ppp_l3m_o = dados_outros_l3m['L3M'].fillna(0).mean()
+                desv_ppp_o = calc_desv_percentual(ppp_ago_o, ppp_l3m_o)
 
-            dados_outros_ago = dados_ago[mask_outros_ago]
-            dados_outros_l3m = dados_l3m[mask_outros_l3m]
+                positiv_ago_o = dados_outros_ago['Positivação'].fillna(0).mean()
+                positiv_l3m_o = dados_outros_l3m['Positivação'].fillna(0).mean()
+                desv_positiv_o = calc_desv_percentual(positiv_ago_o, positiv_l3m_o)
 
-            ppp_ago_o = dados_outros_ago['PPP Realizado'].fillna(0).sum()
-            ppp_l3m_o = dados_outros_l3m['PPP Realizado'].fillna(0).mean()
-            desv_ppp_o = calc_desv_percentual(ppp_ago_o, ppp_l3m_o)
+                giro_ago_o = dados_outros_ago['Giro Médio'].fillna(0).mean()
+                giro_l3m_o = dados_outros_l3m['Giro Médio'].fillna(0).mean()
+                desv_giro_o = calc_desv_percentual(giro_ago_o, giro_l3m_o)
 
-            positiv_ago_o = dados_outros_ago['Positivação'].fillna(0).mean()
-            positiv_l3m_o = dados_outros_l3m['Positivação'].fillna(0).mean()
-            desv_positiv_o = calc_desv_percentual(positiv_ago_o, positiv_l3m_o)
+                sku_ago_o = dados_outros_ago['SKU-PDV'].fillna(0).mean()
+                sku_l3m_o = dados_outros_l3m['SKU-PDV'].fillna(0).mean()
+                desv_sku_o = calc_desv_percentual(sku_ago_o, sku_l3m_o)
 
-            giro_ago_o = dados_outros_ago['Giro Médio'].fillna(0).mean()
-            giro_l3m_o = dados_outros_l3m['Giro Médio'].fillna(0).mean()
-            desv_giro_o = calc_desv_percentual(giro_ago_o, giro_l3m_o)
+                preco_ago_o = dados_outros_ago['Preco Médio PPP'].fillna(0).mean()
+                preco_l3m_o = dados_outros_l3m['Preco Médio PPP'].fillna(0).mean()
+                desv_preco_o = calc_desv_percentual(preco_ago_o, preco_l3m_o)
 
-            sku_ago_o = dados_outros_ago['SKU-PDV'].fillna(0).mean()
-            sku_l3m_o = dados_outros_l3m['SKU-PDV'].fillna(0).mean()
-            desv_sku_o = calc_desv_percentual(sku_ago_o, sku_l3m_o)
+                outros_row = {
+                    '': 'OUTROS',
+                    'DMD | OL': round(ppp_ago_o),
+                    'DESV. % (PPP L3M)': round(desv_ppp_o, 1),
+                    ' ': '',
+                    'POSITIV. AGO/25': round(positiv_ago_o),
+                    'DESV. % (POSITIV L3M)': round(desv_positiv_o, 1),
+                    'GIRO AGO/25': round(giro_ago_o, 1),
+                    'DESV. % (GIRO L3M)': round(desv_giro_o, 1),
+                    'SKU/PDV AGO/25': round(sku_ago_o),
+                    'DESV. % (SKU L3M)': round(desv_sku_o, 1),
+                    'P. MÉDIO AGO/25': round(preco_ago_o, 2),
+                    'DESV. % (P. MÉDIO L3M)': round(desv_preco_o, 1),
+                }
 
-            preco_ago_o = dados_outros_ago['Preco Médio PPP'].fillna(0).mean()
-            preco_l3m_o = dados_outros_l3m['Preco Médio PPP'].fillna(0).mean()
-            desv_preco_o = calc_desv_percentual(preco_ago_o, preco_l3m_o)
+                df_final = pd.concat([df_top7, pd.DataFrame([outros_row])], ignore_index=True)
 
-            outros_row = {
-                '': 'OUTROS',
-                'DEM. PPP AGO/25': round(ppp_ago_o),
-                'DESV. % (PPP L3M)': round(desv_ppp_o, 1),
+            else:
+                # Até 8 grupos: mostra todos (até 8), sem OUTROS
+                df_final = df_grupos.head(8).copy()
+
+            # ---- 3) TOTAL (linha do coordenador) ----
+            df_ago = df_coord[(df_coord['Ano'] == 2025) & (df_coord['Mes'] == mes_limite)]
+            df_l3m = df_coord[(df_coord['Ano'] == 2025) & (df_coord['Mes'].isin(meses_l3m))]
+
+            dados    = df_ago[df_ago[coluna_nome] == nome_coordenador]
+            dados_l3 = df_l3m[df_l3m[coluna_nome] == nome_coordenador]
+
+            ytd_1 = dados_l3['PPP Realizado'].fillna(0).sum() / 3
+            ytdo  = dados['PPP Realizado'].fillna(0).sum()
+
+            ytd_1 = 0 if pd.isna(ytd_1) else ytd_1
+            ytdo  = 0 if pd.isna(ytdo)  else ytdo
+
+            desv_abs  = ytdo - ytd_1
+            desv_perc = (desv_abs / ytd_1 * 100) if ytd_1 != 0 else 0
+
+            ppp_ago = dados['PPP Realizado'].fillna(0).sum()
+            ppp_l3m = dados_l3['PPP Realizado'].fillna(0).mean()
+
+            positiv_ago = dados['Positivação'].fillna(0).mean()
+            positiv_l3m = dados_l3['Positivação'].fillna(0).mean()
+            desv_positiv = ((positiv_ago - positiv_l3m) / positiv_l3m * 100) if positiv_l3m != 0 else 0
+
+            giro_ago = dados['Giro Médio'].fillna(0).mean()
+            giro_l3m = dados_l3['Giro Médio'].fillna(0).mean()
+            desv_giro = ((giro_ago - giro_l3m) / giro_l3m * 100) if giro_l3m != 0 else 0
+
+            sku_ago = dados['SKU-PDV'].fillna(0).mean()
+            sku_l3m = dados_l3['SKU-PDV'].fillna(0).mean()
+            desv_sku = ((sku_ago - sku_l3m) / sku_l3m * 100) if sku_l3m != 0 else 0
+
+            preco_ago = dados['Preco Médio PPP'].fillna(0).mean()
+            preco_l3m = dados_l3['Preco Médio PPP'].fillna(0).mean()
+            desv_preco = ((preco_ago - preco_l3m) / preco_l3m * 100) if preco_l3m != 0 else 0
+
+            total_row = {
+                '': 'TOTAL',
+                'DMD | OL': round(ppp_ago),
+                'DESV. % (PPP L3M)': round(desv_perc, 1),
                 ' ': '',
-                'POSITIV. AGO/25': round(positiv_ago_o),
-                'DESV. % (POSITIV L3M)': round(desv_positiv_o, 1),
-                'GIRO AGO/25': round(giro_ago_o, 1),
-                'DESV. % (GIRO L3M)': round(desv_giro_o, 1),
-                'SKU/PDV AGO/25': round(sku_ago_o),
-                'DESV. % (SKU L3M)': round(desv_sku_o, 1),
-                'P. MÉDIO AGO/25': round(preco_ago_o, 2),
-                'DESV. % (P. MÉDIO L3M)': round(desv_preco_o, 1),
+                'POSITIV. AGO/25': round(positiv_ago, 2),
+                'DESV. % (POSITIV L3M)': round(desv_positiv, 2),
+                'GIRO AGO/25': round(giro_ago, 2),
+                'DESV. % (GIRO L3M)': round(desv_giro, 2),
+                'SKU/PDV AGO/25': round(sku_ago, 2),
+                'DESV. % (SKU L3M)': round(desv_sku, 2),
+                'P. MÉDIO AGO/25': round(preco_ago, 2),
+                'DESV. % (P. MÉDIO L3M)': round(desv_preco, 2),
             }
 
-            df_final = pd.concat([df_top7, pd.DataFrame([outros_row])], ignore_index=True)
-
+            df_final = pd.concat([df_final, pd.DataFrame([total_row])], ignore_index=True)
+            return df_final
         else:
-            # Até 8 grupos: mostra todos (até 8), sem OUTROS
-            df_final = df_grupos.head(8).copy()
+           # ---- 1) KPIs por grupo (mesma lógica para todos) ----
+            resultado = []
+            for grupo in dados_ago[coluna_grupo].unique():
+                dados_ago_grupo = dados_ago[dados_ago[coluna_grupo] == grupo]
+                dados_l3m_grupo = dados_l3m[dados_l3m[coluna_grupo] == grupo]
 
-        # ---- 3) TOTAL (linha do coordenador) ----
-        df_ago = df_coord[(df_coord['Ano'] == 2025) & (df_coord['Mes'] == mes_limite)]
-        df_l3m = df_coord[(df_coord['Ano'] == 2025) & (df_coord['Mes'].isin(meses_l3m))]
+                ppp_ago = dados_ago_grupo['PPP Realizado'].fillna(0).sum()
+                ppp_l3m = dados_l3m_grupo['PPP Realizado'].fillna(0).mean()
+                desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
-        dados    = df_ago[df_ago[coluna_nome] == nome_coordenador]
-        dados_l3 = df_l3m[df_l3m[coluna_nome] == nome_coordenador]
+                positiv_ago = dados_ago_grupo['Positivação'].fillna(0).mean()
+                positiv_l3m = dados_l3m_grupo['Positivação'].fillna(0).mean()
+                desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
 
-        ytd_1 = dados_l3['PPP Realizado'].fillna(0).sum() / 3
-        ytdo  = dados['PPP Realizado'].fillna(0).sum()
+                giro_ago = dados_ago_grupo['Giro Médio'].fillna(0).mean()
+                giro_l3m = dados_l3m_grupo['Giro Médio'].fillna(0).mean()
+                desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
 
-        ytd_1 = 0 if pd.isna(ytd_1) else ytd_1
-        ytdo  = 0 if pd.isna(ytdo)  else ytdo
+                sku_ago = dados_ago_grupo['SKU-PDV'].fillna(0).mean()
+                sku_l3m = dados_l3m_grupo['SKU-PDV'].fillna(0).mean()
+                desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
 
-        desv_abs  = ytdo - ytd_1
-        desv_perc = (desv_abs / ytd_1 * 100) if ytd_1 != 0 else 0
+                preco_ago = dados_ago_grupo['Preco Médio PPP'].fillna(0).mean()
+                preco_l3m = dados_l3m_grupo['Preco Médio PPP'].fillna(0).mean()
+                desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
 
-        ppp_ago = dados['PPP Realizado'].fillna(0).sum()
-        ppp_l3m = dados_l3['PPP Realizado'].fillna(0).mean()
+                resultado.append({
+                    '': grupo,
+                    'DEM. PPP AGO/25': round(ppp_ago),
+                    'DESV. % (PPP L3M)': round(desv_ppp, 1),
+                    ' ': '',  # coluna separadora
+                    'POSITIV. AGO/25': round(positiv_ago),
+                    'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
+                    'GIRO AGO/25': round(giro_ago, 1),
+                    'DESV. % (GIRO L3M)': round(desv_giro, 1),
+                    'SKU/PDV AGO/25': round(sku_ago),
+                    'DESV. % (SKU L3M)': round(desv_sku, 1),
+                    'P. MÉDIO AGO/25': round(preco_ago, 2),
+                    'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
+                })
 
-        positiv_ago = dados['Positivação'].fillna(0).mean()
-        positiv_l3m = dados_l3['Positivação'].fillna(0).mean()
-        desv_positiv = ((positiv_ago - positiv_l3m) / positiv_l3m * 100) if positiv_l3m != 0 else 0
+            df_grupos = pd.DataFrame(resultado).sort_values(by='DEM. PPP AGO/25', ascending=False).reset_index(drop=True)
+            n_groups = len(df_grupos)
 
-        giro_ago = dados['Giro Médio'].fillna(0).mean()
-        giro_l3m = dados_l3['Giro Médio'].fillna(0).mean()
-        desv_giro = ((giro_ago - giro_l3m) / giro_l3m * 100) if giro_l3m != 0 else 0
+            # ---- 2) Seleção TOP e cálculo de OUTROS conforme regra ----
+            if n_groups > 8:
+                # TOP 7
+                df_top7 = df_grupos.head(7).copy()
+                grupos_top7_calc = set(df_top7[''].tolist())
 
-        sku_ago = dados['SKU-PDV'].fillna(0).mean()
-        sku_l3m = dados_l3['SKU-PDV'].fillna(0).mean()
-        desv_sku = ((sku_ago - sku_l3m) / sku_l3m * 100) if sku_l3m != 0 else 0
+                # Conjunto OUTROS com a MESMA lógica dos grupos (usando os dados brutos desses grupos)
+                mask_outros_ago = ~dados_ago[coluna_grupo].isin(grupos_top7_calc)
+                mask_outros_l3m = ~dados_l3m[coluna_grupo].isin(grupos_top7_calc)
 
-        preco_ago = dados['Preco Médio PPP'].fillna(0).mean()
-        preco_l3m = dados_l3['Preco Médio PPP'].fillna(0).mean()
-        desv_preco = ((preco_ago - preco_l3m) / preco_l3m * 100) if preco_l3m != 0 else 0
+                dados_outros_ago = dados_ago[mask_outros_ago]
+                dados_outros_l3m = dados_l3m[mask_outros_l3m]
 
-        total_row = {
-            '': 'TOTAL',
-            'DEM. PPP AGO/25': round(ppp_ago),
-            'DESV. % (PPP L3M)': round(desv_perc, 1),
-            ' ': '',
-            'POSITIV. AGO/25': round(positiv_ago, 2),
-            'DESV. % (POSITIV L3M)': round(desv_positiv, 2),
-            'GIRO AGO/25': round(giro_ago, 2),
-            'DESV. % (GIRO L3M)': round(desv_giro, 2),
-            'SKU/PDV AGO/25': round(sku_ago, 2),
-            'DESV. % (SKU L3M)': round(desv_sku, 2),
-            'P. MÉDIO AGO/25': round(preco_ago, 2),
-            'DESV. % (P. MÉDIO L3M)': round(desv_preco, 2),
-        }
+                ppp_ago_o = dados_outros_ago['PPP Realizado'].fillna(0).sum()
+                ppp_l3m_o = dados_outros_l3m['PPP Realizado'].fillna(0).mean()
+                desv_ppp_o = calc_desv_percentual(ppp_ago_o, ppp_l3m_o)
 
-        df_final = pd.concat([df_final, pd.DataFrame([total_row])], ignore_index=True)
-        return df_final
+                positiv_ago_o = dados_outros_ago['Positivação'].fillna(0).mean()
+                positiv_l3m_o = dados_outros_l3m['Positivação'].fillna(0).mean()
+                desv_positiv_o = calc_desv_percentual(positiv_ago_o, positiv_l3m_o)
+
+                giro_ago_o = dados_outros_ago['Giro Médio'].fillna(0).mean()
+                giro_l3m_o = dados_outros_l3m['Giro Médio'].fillna(0).mean()
+                desv_giro_o = calc_desv_percentual(giro_ago_o, giro_l3m_o)
+
+                sku_ago_o = dados_outros_ago['SKU-PDV'].fillna(0).mean()
+                sku_l3m_o = dados_outros_l3m['SKU-PDV'].fillna(0).mean()
+                desv_sku_o = calc_desv_percentual(sku_ago_o, sku_l3m_o)
+
+                preco_ago_o = dados_outros_ago['Preco Médio PPP'].fillna(0).mean()
+                preco_l3m_o = dados_outros_l3m['Preco Médio PPP'].fillna(0).mean()
+                desv_preco_o = calc_desv_percentual(preco_ago_o, preco_l3m_o)
+
+                outros_row = {
+                    '': 'OUTROS',
+                    'DEM. PPP AGO/25': round(ppp_ago_o),
+                    'DESV. % (PPP L3M)': round(desv_ppp_o, 1),
+                    ' ': '',
+                    'POSITIV. AGO/25': round(positiv_ago_o),
+                    'DESV. % (POSITIV L3M)': round(desv_positiv_o, 1),
+                    'GIRO AGO/25': round(giro_ago_o, 1),
+                    'DESV. % (GIRO L3M)': round(desv_giro_o, 1),
+                    'SKU/PDV AGO/25': round(sku_ago_o),
+                    'DESV. % (SKU L3M)': round(desv_sku_o, 1),
+                    'P. MÉDIO AGO/25': round(preco_ago_o, 2),
+                    'DESV. % (P. MÉDIO L3M)': round(desv_preco_o, 1),
+                }
+
+                df_final = pd.concat([df_top7, pd.DataFrame([outros_row])], ignore_index=True)
+
+            else:
+                # Até 8 grupos: mostra todos (até 8), sem OUTROS
+                df_final = df_grupos.head(8).copy()
+
+            # ---- 3) TOTAL (linha do coordenador) ----
+            df_ago = df_coord[(df_coord['Ano'] == 2025) & (df_coord['Mes'] == mes_limite)]
+            df_l3m = df_coord[(df_coord['Ano'] == 2025) & (df_coord['Mes'].isin(meses_l3m))]
+
+            dados    = df_ago[df_ago[coluna_nome] == nome_coordenador]
+            dados_l3 = df_l3m[df_l3m[coluna_nome] == nome_coordenador]
+
+            ytd_1 = dados_l3['PPP Realizado'].fillna(0).sum() / 3
+            ytdo  = dados['PPP Realizado'].fillna(0).sum()
+
+            ytd_1 = 0 if pd.isna(ytd_1) else ytd_1
+            ytdo  = 0 if pd.isna(ytdo)  else ytdo
+
+            desv_abs  = ytdo - ytd_1
+            desv_perc = (desv_abs / ytd_1 * 100) if ytd_1 != 0 else 0
+
+            ppp_ago = dados['PPP Realizado'].fillna(0).sum()
+            ppp_l3m = dados_l3['PPP Realizado'].fillna(0).mean()
+
+            positiv_ago = dados['Positivação'].fillna(0).mean()
+            positiv_l3m = dados_l3['Positivação'].fillna(0).mean()
+            desv_positiv = ((positiv_ago - positiv_l3m) / positiv_l3m * 100) if positiv_l3m != 0 else 0
+
+            giro_ago = dados['Giro Médio'].fillna(0).mean()
+            giro_l3m = dados_l3['Giro Médio'].fillna(0).mean()
+            desv_giro = ((giro_ago - giro_l3m) / giro_l3m * 100) if giro_l3m != 0 else 0
+
+            sku_ago = dados['SKU-PDV'].fillna(0).mean()
+            sku_l3m = dados_l3['SKU-PDV'].fillna(0).mean()
+            desv_sku = ((sku_ago - sku_l3m) / sku_l3m * 100) if sku_l3m != 0 else 0
+
+            preco_ago = dados['Preco Médio PPP'].fillna(0).mean()
+            preco_l3m = dados_l3['Preco Médio PPP'].fillna(0).mean()
+            desv_preco = ((preco_ago - preco_l3m) / preco_l3m * 100) if preco_l3m != 0 else 0
+
+            total_row = {
+                '': 'TOTAL',
+                'DEM. PPP AGO/25': round(ppp_ago),
+                'DESV. % (PPP L3M)': round(desv_perc, 1),
+                ' ': '',
+                'POSITIV. AGO/25': round(positiv_ago, 2),
+                'DESV. % (POSITIV L3M)': round(desv_positiv, 2),
+                'GIRO AGO/25': round(giro_ago, 2),
+                'DESV. % (GIRO L3M)': round(desv_giro, 2),
+                'SKU/PDV AGO/25': round(sku_ago, 2),
+                'DESV. % (SKU L3M)': round(desv_sku, 2),
+                'P. MÉDIO AGO/25': round(preco_ago, 2),
+                'DESV. % (P. MÉDIO L3M)': round(desv_preco, 2),
+            }
+
+            df_final = pd.concat([df_final, pd.DataFrame([total_row])], ignore_index=True)
+            return df_final
 
 
     #Gerar tabelas por coordenador
@@ -396,7 +561,7 @@ def main(mes_limite):
         tabela_ytd = calcular_indicadores_gerais_grupo(dados_coord, coluna_grupo, coordenador)
         grupos_top7 = tabela_ytd[(tabela_ytd[''] != 'OUTROS') & (tabela_ytd[''] != 'TOTAL')][''].tolist()
         # Tabela tipo "imagem" (KPI) na mesma ordem do YTD
-        tabela_kpi = calcular_tabela_por_grupo(dados_ago_coord, dados_l3m_coord, grupos_top7, coordenador)
+        tabela_kpi = calcular_tabela_por_grupo(dados_ago_coord, dados_l3m_coord, coordenador)
         primeiro_nome = coordenador.split()[0]
         tabela_kpi.to_excel(os.path.join(rt_folder, f"tabela_top7_KPI_{primeiro_nome}.xlsx"), index=False)
         tabela_ytd.to_excel(os.path.join(rt_folder, f"tabela_top7_YTD_{primeiro_nome}.xlsx"), index=False)
