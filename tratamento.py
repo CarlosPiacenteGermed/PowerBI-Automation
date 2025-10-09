@@ -77,55 +77,117 @@ def main(mes_limite):
 
     # ------------------ TABELA DA IMAGEM ------------------ #
     def calcular_tabela_l3m_gerais(df, coluna_nome=coluna_nome):
-        meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
-        df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
-        df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        territorio_path = os.getenv("TERRITORIO_PATH" )
+        path_territorio = os.path.join(downloads_folder, territorio_path)
+        def calc_desv_percentual(valor_atual, media_l3m):
+             return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m not in [0, None, float('nan')] and media_l3m != 0 else 0
+        territorio = False
+        if os.path.isfile(path_territorio):
+            territorio = True
+            # Importa a tabela de território
+            df_territorio = pd.read_excel(path_territorio, skiprows=2,engine="openpyxl")
+            
+            resultado = []
+            meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+            df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
+            df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
+            for nome in df_ago[coluna_nome].unique():
+                 dados_ago = df_ago[df_ago[coluna_nome] == nome]
+                 dados_l3m = df_l3m[df_l3m[coluna_nome] == nome]
+                 dados_grupo = df_territorio[df_territorio.iloc[:, 0] == nome]
+                 def calc_desv_percentual(valor_atual, media_l3m):
+                    return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
 
-        resultado = []
-        for nome in df_ago[coluna_nome].unique():
-            dados_ago = df_ago[df_ago[coluna_nome] == nome]
-            dados_l3m = df_l3m[df_l3m[coluna_nome] == nome]
+                 ppp_ago = dados_grupo["DMD | OL"].fillna(0).sum()
+                 ppp_l3m = dados_grupo["L3M"].fillna(0).mean()
+                 desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
-            def calc_desv_percentual(valor_atual, media_l3m):
-                return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
+                 positiv_ago = dados_ago['Positivação'].fillna(0).mean()
+                 positiv_l3m = dados_l3m['Positivação'].fillna(0).mean()
+                 desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
 
-            ppp_ago = dados_ago['PPP Realizado'].fillna(0).sum()
-            ppp_l3m = dados_l3m['PPP Realizado'].fillna(0).mean()
-            desv_ppp_abs = ppp_ago - ppp_l3m
-            desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
+                 giro_ago = dados_ago['Giro Médio'].fillna(0).mean()
+                 giro_l3m = dados_l3m['Giro Médio'].fillna(0).mean()
+                 desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
 
-            positiv_ago = dados_ago['Positivação'].fillna(0).mean()
-            positiv_l3m = dados_l3m['Positivação'].fillna(0).mean()
-            desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
+                 sku_ago = dados_ago['SKU-PDV'].fillna(0).mean()
+                 sku_l3m = dados_l3m['SKU-PDV'].fillna(0).mean()
+                 desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
 
-            giro_ago = dados_ago['Giro Médio'].fillna(0).mean()
-            giro_l3m = dados_l3m['Giro Médio'].fillna(0).mean()
-            desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
+                 preco_ago = dados_ago['Preco Médio PPP'].fillna(0).mean()
+                 preco_l3m = dados_l3m['Preco Médio PPP'].fillna(0).mean()
+                 desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
 
-            sku_ago = dados_ago['SKU-PDV'].fillna(0).mean()
-            sku_l3m = dados_l3m['SKU-PDV'].fillna(0).mean()
-            desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
+                 nome_final = 'Total' if nome == 'Total' else nome.split()[0]
+                
+                 resultado.append({
+                    '': nome_final,
+                    'DEM. PPP MES/25': round(ppp_ago),
+                    'DESV. % (PPP L3M)': round(desv_ppp, 1),
+                    ' ': '',  # coluna separadora
+                    'POSITIV. MES/25': round(positiv_ago),
+                    'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
+                    'GIRO MES/25': round(giro_ago, 1),
+                    'DESV. % (GIRO L3M)': round(desv_giro, 1),
+                    'SKU/PDV MES/25': round(sku_ago),
+                    'DESV. % (SKU L3M)': round(desv_sku, 1),
+                    'P. MÉDIO MES/25': round(preco_ago, 2),
+                    'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
+                })
+            return pd.DataFrame(resultado)
+        else:   
+            meses_l3m = [mes_limite - 3, mes_limite - 2, mes_limite-1]
+            df_l3m = df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]
+            df_ago = df[(df['Ano'] == 2025) & (df['Mes'] == mes_limite)]
 
-            preco_ago = dados_ago['Preco Médio PPP'].fillna(0).mean()
-            preco_l3m = dados_l3m['Preco Médio PPP'].fillna(0).mean()
-            desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
+            resultado = []
+            for nome in df_ago[coluna_nome].unique():
+                dados_ago = df_ago[df_ago[coluna_nome] == nome]
+                dados_l3m = df_l3m[df_l3m[coluna_nome] == nome]
 
-            nome_final = 'Total' if nome == 'Total' else nome.split()[0]
-            resultado.append({
-                '': nome_final,
-                'DEM. PPP MES/25': round(ppp_ago),
-                'DESV. % (PPP L3M)': round(desv_ppp, 1),
-                ' ': '',  # coluna separadora
-                'POSITIV. MES/25': round(positiv_ago),
-                'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
-                'GIRO MES/25': round(giro_ago, 1),
-                'DESV. % (GIRO L3M)': round(desv_giro, 1),
-                'SKU/PDV MES/25': round(sku_ago),
-                'DESV. % (SKU L3M)': round(desv_sku, 1),
-                'P. MÉDIO MES/25': round(preco_ago, 2),
-                'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
-            })
-        return pd.DataFrame(resultado)
+                def calc_desv_percentual(valor_atual, media_l3m):
+                    return ((valor_atual - media_l3m) / media_l3m * 100) if media_l3m != 0 else 0
+
+                ppp_ago = dados_ago['PPP Realizado'].fillna(0).sum()
+                ppp_l3m = dados_l3m['PPP Realizado'].fillna(0).mean()
+                desv_ppp_abs = ppp_ago - ppp_l3m
+                desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
+
+                positiv_ago = dados_ago['Positivação'].fillna(0).mean()
+                positiv_l3m = dados_l3m['Positivação'].fillna(0).mean()
+                desv_positiv = calc_desv_percentual(positiv_ago, positiv_l3m)
+
+                giro_ago = dados_ago['Giro Médio'].fillna(0).mean()
+                giro_l3m = dados_l3m['Giro Médio'].fillna(0).mean()
+                desv_giro = calc_desv_percentual(giro_ago, giro_l3m)
+
+                sku_ago = dados_ago['SKU-PDV'].fillna(0).mean()
+                sku_l3m = dados_l3m['SKU-PDV'].fillna(0).mean()
+                desv_sku = calc_desv_percentual(sku_ago, sku_l3m)
+
+                preco_ago = dados_ago['Preco Médio PPP'].fillna(0).mean()
+                preco_l3m = dados_l3m['Preco Médio PPP'].fillna(0).mean()
+                desv_preco = calc_desv_percentual(preco_ago, preco_l3m)
+
+                nome_final = 'Total' if nome == 'Total' else nome.split()[0]
+                resultado.append({
+                    '': nome_final,
+                    'DEM. PPP MES/25': round(ppp_ago),
+                    'DESV. % (PPP L3M)': round(desv_ppp, 1),
+                    ' ': '',  # coluna separadora
+                    'POSITIV. MES/25': round(positiv_ago),
+                    'DESV. % (POSITIV L3M)': round(desv_positiv, 1),
+                    'GIRO MES/25': round(giro_ago, 1),
+                    'DESV. % (GIRO L3M)': round(desv_giro, 1),
+                    'SKU/PDV MES/25': round(sku_ago),
+                    'DESV. % (SKU L3M)': round(desv_sku, 1),
+                    'P. MÉDIO MES/25': round(preco_ago, 2),
+                    'DESV. % (P. MÉDIO L3M)': round(desv_preco, 1),
+                })
+            return pd.DataFrame(resultado)
 
 
     # Gerar segunda tabela
