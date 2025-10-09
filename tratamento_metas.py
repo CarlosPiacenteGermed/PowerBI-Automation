@@ -61,6 +61,93 @@ def _coverage(real: pd.Series, meta: pd.Series) -> pd.Series:
 
 # ========= Configuração dos nomes de colunas =========
 
+
+# ========= Normalização de colunas (aliases) =========
+def _norm(s: str) -> str:
+    # normaliza para comparação robusta
+    return " ".join(str(s).strip().split()).casefold()
+
+def _build_col_index(df: pd.DataFrame) -> dict:
+    # mapeia nome-normalizado -> nome-original no DF
+    return {_norm(c): c for c in df.columns}
+
+# Dicionário de aliases:
+# à esquerda: NOME CANÔNICO (o que o seu código já usa)
+# à direita: nomes alternativos que podem aparecer no arquivo "Território"
+ALIASES = {
+    # Identificação
+    "NOME GD": ["NOME GD"],
+    "NOME REP": ["NOME REP", "NOME GR"],  # Território usa NOME GR
+
+    # OL (gerais)
+    "($)META_OL": ["($)META_OL"],
+    "($)OL": ["($)OL"],
+    "'Medidas'[($)OLDelta]": ["'Medidas'[($)OLDelta]"],
+    "(%)_OL": ["(%)_OL"],
+    "MERCANET": ["MERCANET"],
+    "PHARMALINK": ["PHARMALINK"],
+
+    # PPP TOTAL (Assoc/Coord)  <->  PPP TERR (Território)
+    "($)META_PPP": ["($)META_PPP", "'Medidas'[($)META_PPP_TERR]"],
+    "PPP": ["PPP"],
+    "'Medidas'[($)DeltaMDTRAssoc]": ["'Medidas'[($)DeltaMDTRAssoc]", "'Medidas'[($)DeltaMDTRTerr]"],
+    "(%)_PPP": ["(%)_PPP", "'Medidas'[(%)_PPP_TERR]"],
+
+    # MIX (Assoc = PPP_MIX ; Território = OL_MIX)
+    "($)META_PPP_MIX": ["($)META_PPP_MIX", "($)META_OL_MIX"],
+    "MIX": ["MIX", "($)OL_MIX"],
+    "'Medidas'[($)DemandaDeltaMixFocoAssoc]": ["'Medidas'[($)DemandaDeltaMixFocoAssoc]", "'Medidas'[($)OLDeltaMixFoco]"],
+    "(%)_PPP_MIX": ["(%)_PPP_MIX", "(%)_MIX_OL"],
+
+    # Lançamentos (Assoc = PPP_LAN ; Território = OL_LANC)
+    "($)META_PPP_LAN": ["($)META_PPP_LAN", "($)META_OL_LANC"],
+    "LANÇ": ["LANÇ", "($)OL_LANC"],
+    "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]": ["'Medidas'[($)DemandaDeltaLaNCFocoAssoc]", "'Medidas'[($)OLDeltaMixLanc]"],
+    "(%)_PPP_LAN": ["(%)_PPP_LAN", "(%)_LANC_OL"],
+
+    # N COMBATE (Assoc = PPP_*_SO ; Território = OL_* )
+    "'Medidas'[($)META_PPP_N_COMBATE_SO]": ["'Medidas'[($)META_PPP_N_COMBATE_SO]", "'Medidas'[($)META_OL_N_COMBATE]"],
+    "N COMBATE": ["N COMBATE"],
+    "'Medidas'[($)Delta_N_Combate_SO]": ["'Medidas'[($)Delta_N_Combate_SO]", "'Medidas'[($)Delta_N_Combate]"],
+    "'Medidas'[(%)COB_N_COMBATE_SO]": ["'Medidas'[(%)COB_N_COMBATE_SO]", "'Medidas'[(%)COB_N_COMBATE]"],
+
+    # COMBATE (Assoc = PPP_*_SO ; Território = OL_* )
+    "'Medidas'[($)META_PPP_COMBATE_SO]": ["'Medidas'[($)META_PPP_COMBATE_SO]", "'Medidas'[($)META_OL_COMBATE]"],
+    "COMBATE": ["COMBATE"],
+    "'Medidas'[($)DeltaCombate_SO]": ["'Medidas'[($)DeltaCombate_SO]", "'Medidas'[($)DeltaCombate]"],
+    "'Medidas'[(%)COB_COMBATE_SO]": ["'Medidas'[(%)COB_COMBATE_SO]", "'Medidas'[(%)COB_COMBATE]"],
+
+    # (Opcional) SKU/PDV (aparece em Território; hoje não usado no seu pipeline)
+    "($)META_SKU/PDV": ["($)META_SKU/PDV"],
+    "(!)SKU/PDV (OL)": ["(!)SKU/PDV (OL)"],
+    "'Medidas'[($)DeltaSKUPDV]": ["'Medidas'[($)DeltaSKUPDV]"],
+    "(%)_SKU/PDV_OL": ["(%)_SKU/PDV_OL"],
+}
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Renomeia colunas de df para o padrão canônico usado pelo script,
+    com base em ALIASES. A primeira correspondência encontrada tem prioridade.
+    Comparação é case-insensitive e ignora espaços duplicados.
+    """
+    col_index = _build_col_index(df)
+    rename_map = {}
+    for canonical, candidates in ALIASES.items():
+        for cand in candidates:
+            key = _norm(cand)
+            if key in col_index:
+                orig = col_index[key]
+                if orig != canonical and canonical not in df.columns:
+                    rename_map[orig] = canonical
+                break  # achou um nome válido para este canônico; segue ao próximo
+    if rename_map:
+        df = df.rename(columns=rename_map)
+    return df
+
+
+
+
+
 CATEGORIAS = {
     "OL": {
         "meta": "($)META_OL",
@@ -99,6 +186,15 @@ CATEGORIAS = {
         "delta": "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]",
         "cobertura": "(%)_PPP_LAN",
     },
+    
+    "SKU_PDV_OL": {
+        "meta": "($)META_SKU/PDV",
+        "real": "(!)SKU/PDV (OL)",
+        "delta": "'Medidas'[($)DeltaSKUPDV]",
+        "cobertura": "(%)_SKU/PDV_OL",
+    },
+    
+
 }
 
 BASE_COL_ORDER = [
@@ -109,6 +205,10 @@ BASE_COL_ORDER = [
     "($)META_PPP_MIX", "MIX", "'Medidas'[($)DemandaDeltaMixFocoAssoc]", "(%)_PPP_MIX",
     "($)META_PPP_LAN", "LANÇ", "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]", "(%)_PPP_LAN",
 ]
+
+
+df_sem_ge = normalize_columns(df_sem_ge)
+df_metas  = normalize_columns(df_metas)
 
 def build_tabela_base(df_sem_ge: pd.DataFrame) -> pd.DataFrame:
     out = df_sem_ge.copy()
@@ -153,28 +253,81 @@ def build_tabela_base(df_sem_ge: pd.DataFrame) -> pd.DataFrame:
         if c not in out.columns:
             raise KeyError(f"A coluna obrigatória '{c}' não está presente após o preparo.")
 
-    # Garante layout
-    for col in BASE_COL_ORDER:
+   
+# No topo do arquivo: troque BASE_COL_ORDER por uma base mínima + opcionais
+BASE_COL_MIN = [
+    "NOME GD", "NOME REP",
+    "($)META_OL", "($)OL",
+    "'Medidas'[($)OLDelta]", "(%)_OL",
+    "($)META_PPP", "PPP", "'Medidas'[($)DeltaMDTRAssoc]", "(%)_PPP",
+    "($)META_PPP_MIX", "MIX", "'Medidas'[($)DemandaDeltaMixFocoAssoc]", "(%)_PPP_MIX",
+    "($)META_PPP_LAN", "LANÇ", "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]", "(%)_PPP_LAN",
+]
+BASE_COL_OPTIONAL = [
+    # Território – SKU/PDV (OL)
+    "($)META_SKU/PDV", "(!)SKU/PDV (OL)", "'Medidas'[($)DeltaSKUPDV]", "(%)_SKU/PDV_OL",
+    "'Medidas'[($)META_PPP_N_COMBATE_SO]", "N COMBATE", "'Medidas'[($)Delta_N_Combate_SO]", "'Medidas'[(%)COB_N_COMBATE_SO]",
+    "'Medidas'[($)META_PPP_COMBATE_SO]", "COMBATE", "'Medidas'[($)DeltaCombate_SO]", "'Medidas'[(%)COB_COMBATE_SO]",
+    # (Opcional) Se você confirmar que "Positivação MIX Foco" é outra origem, inclua aqui
+    # as respectivas colunas de meta/real/delta/cob desejadas.
+]
+
+def build_tabela_base(df_sem_ge: pd.DataFrame) -> pd.DataFrame:
+    out = df_sem_ge.copy()
+
+    # ... (restante do código atual do build_tabela_base)
+
+    # Garante colunas obrigatórias de identificação
+    # for c in ["NOME GD", "NOME REP"]:
+    #     if c not in out.columns:
+    #         raise KeyError(f"A coluna obrigatória '{c}' não está presente após o preparo.")
+
+    # Layout: base mínima + opcionais que existirem
+    desired = BASE_COL_MIN + [c for c in BASE_COL_OPTIONAL if c in out.columns]
+    for col in desired:
         if col not in out.columns:
             out[col] = np.nan
 
-    out = out[BASE_COL_ORDER]
+    out = out[desired]
     return out
+
 
 # ========= Tabelas finais =========
 
-def _agg_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.DataFrame:
+
+def _descobrir_categorias_disponiveis(df: pd.DataFrame) -> dict:
     """
-    Agrega por grupo (GD ou REP) gerando somatórios para metas/real das 4 categorias pedidas.
-    Retorna um DF com colunas: META/REAL de cada categoria.
+    Retorna um dicionário {rótulo: (meta_col, real_col)} apenas
+    para categorias cujos pares meta/real existem no DF.
     """
-    cat_cols = {
+    display_map = {
+        # Clássicas
         "Demanda PPP": ("($)META_PPP", "PPP"),
         "Lançamentos": ("($)META_PPP_LAN", "LANÇ"),
         "Mix Foco": ("($)META_PPP_MIX", "MIX"),
         "OL": ("($)META_OL", "($)OL"),
+
+        # Extras já suportadas
+        "SKU/PDV (OL)": ("($)META_SKU/PDV", "(!)SKU/PDV (OL)"),
+
+        # ✅ Novas categorias pedidas
+        "N COMBATE": ("'Medidas'[($)META_PPP_N_COMBATE_SO]", "N COMBATE"),
+        "COMBATE": ("'Medidas'[($)META_PPP_COMBATE_SO]", "COMBATE"),
     }
 
+    disponiveis = {}
+    for label, (meta_col, real_col) in display_map.items():
+        if meta_col in df.columns and real_col in df.columns:
+            disponiveis[label] = (meta_col, real_col)
+    return disponiveis
+
+
+
+def _agg_por_grupo(tabela_base: pd.DataFrame, group_col: str, cat_cols: dict) -> pd.DataFrame:
+    """
+    Agrega por grupo (GD ou REP) somando metas/real de todas as categorias informadas.
+    Retorna um DF com colunas = todas as metas e reals das categorias disponíveis.
+    """
     numeric_cols = []
     for meta_col, real_col in cat_cols.values():
         if meta_col in tabela_base.columns: numeric_cols.append(meta_col)
@@ -190,14 +343,52 @@ def _agg_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.DataFrame:
 
     agg = tabela_base.groupby(group_col, dropna=False).agg(agg_dict)
 
-    # Garante colunas mesmo se não existirem na origem
-    for nome_cat, (meta_col, real_col) in cat_cols.items():
+    # garante colunas mesmo se faltarem na origem
+    for meta_col, real_col in cat_cols.values():
         if meta_col not in agg.columns: agg[meta_col] = np.nan
         if real_col not in agg.columns: agg[real_col] = np.nan
 
     return agg
 
 def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    """
+    Monta matriz no layout:
+      - Colunas: categorias dinâmicas (ex.: Demanda PPP, Lançamentos, Mix Foco, OL, SKU/PDV (OL), ...)
+      - Linhas: para cada grupo (GD/REP): ['Objetivo (Meta)', 'Real', 'Cobertura'].
+    """
+    cat_cols = _descobrir_categorias_disponiveis(tabela_base)
+    agg = _agg_por_grupo(tabela_base, group_col=group_col, cat_cols=cat_cols)
+
+    frames = []
+    for nome_cat, (meta_col, real_col) in cat_cols.items():
+        objetivo = agg[meta_col]
+        real = agg[real_col]
+        cob = _coverage(real, objetivo)
+        bloco = pd.concat(
+            {
+                (nome_cat, "Objetivo (Meta)"): objetivo,
+                (nome_cat, "Real"): real,
+                (nome_cat, "Cobertura"): cob,
+            },
+            axis=1,
+        )
+        frames.append(bloco)
+
+    wide = pd.concat(frames, axis=1)
+
+    # Ordena colunas na sequência: as 4 clássicas, depois extras em ordem alfabética
+    ordem_base = ["Demanda PPP", "Lançamentos", "Mix Foco", "OL"]
+    extras = [c for c in cat_cols.keys() if c not in ordem_base]
+    ordem_final = [c for c in ordem_base if c in cat_cols] + sorted(extras)
+    wide = wide.reindex(
+        columns=pd.MultiIndex.from_product([ordem_final, ["Objetivo (Meta)", "Real", "Cobertura"]])
+    )
+
+    # Transforma métricas em linhas
+    out = wide.stack(level=1, future_stack=True)
+    out.index = out.index.set_names([group_col, "Linha"])
+    return out
+
     """
     Retorna matriz no layout solicitado:
       - Colunas: ['Demanda PPP','Lançamentos','Mix Foco','OL']
@@ -243,11 +434,13 @@ def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.Data
     return out
 
 def build_metas_total_gd(tabela_base: pd.DataFrame) -> pd.DataFrame:
-    """Matriz por GD no layout solicitado."""
     _ensure_columns(tabela_base, ["NOME GD"], "tabela_base")
     return build_matriz_por_grupo(tabela_base, group_col="NOME GD")
 
 def build_metas_gr_completa(tabela_base: pd.DataFrame) -> pd.DataFrame:
+    _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
+    return build_matriz_por_grupo(tabela_base, group_col="NOME REP")
+
     """Matriz por Representante (GR) no layout solicitado."""
     _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
     return build_matriz_por_grupo(tabela_base, group_col="NOME REP")
