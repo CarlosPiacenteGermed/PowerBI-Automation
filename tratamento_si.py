@@ -24,7 +24,7 @@ def calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite):
         l3m = (
             df[(df['Ano'] == 2025) & (df['Mes'].isin(meses_l3m))]['PPP Realizado']
             .fillna(0)
-            .mean()
+            .sum()
         )
         # MÊS = soma do mês limite (PPP Realizado)
         mes = (
@@ -32,6 +32,7 @@ def calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite):
             .fillna(0)
             .sum()
         )
+        l3m = l3m / 3  # Média dos 3 meses
         desv_abs = mes - l3m
         desv_perc = (desv_abs / l3m * 100) if l3m != 0 else 0
         return l3m, mes, desv_abs, desv_perc
@@ -69,7 +70,7 @@ def calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite):
             'RCD MES': round(mes_total),
             'DESV. ABS': round(desv_total),
             'REPRES. %': '100%',
-            'DESV. %': f"{round(perc_total)}%",
+            'DESV. %': {round(perc_total,1)},
         })
 
         # Linha VISITADO
@@ -78,8 +79,8 @@ def calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite):
             'RCD L3M': round(l3m_vis),
             'RCD MES': round(mes_vis),
             'DESV. ABS': round(desv_vis),
-            'REPRES. %': f"{round(repres_vis)}%",
-            'DESV. %': f"{round(perc_vis)}%",
+            'REPRES. %': {round(repres_vis)},
+            'DESV. %': {round(perc_vis,1)},
         })
 
         # Linha NÃO VISITADO
@@ -88,8 +89,8 @@ def calcular_sellin_l3m(df_total, df_nao_visitado, df_visitado, mes_limite):
             'RCD L3M': round(l3m_nao),
             'RCD MES': round(mes_nao),
             'DESV. ABS': round(desv_nao),
-            'REPRES. %': f"{round(repres_nao)}%",
-            'DESV. %': f"{round(perc_nao)}%",
+            'REPRES. %': {round(repres_nao)},
+            'DESV. %': {round(perc_nao,1)},
         })
 
     return pd.DataFrame(resultado)
@@ -254,3 +255,4 @@ if __name__ == "__main__":
 
     # Salva em Excel
     df_resultado_kpis_grupo.to_excel(os.path.join(rt_folder, f"{coluna_nome}_resultado_kpis_consolidado.xlsx"), index=False)
+    print("Arquivo 'resultado_kpis_consolidado.xlsx' gerado com sucesso.")
