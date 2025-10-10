@@ -424,8 +424,10 @@ def main(mes_limite):
             desv_abs  = ytdo - ytd_1
             desv_perc = (desv_abs / ytd_1 * 100) if ytd_1 != 0 else 0
 
-            ppp_ago = dados['PPP Realizado'].fillna(0).sum()
-            ppp_l3m = dados_l3['PPP Realizado'].fillna(0).mean()
+            dados_grupo = df_territorio[df_territorio["Nome Gr"] == nome_coordenador]
+            ppp_ago = dados_grupo["DMD | OL"].fillna(0).sum()
+            ppp_l3m = dados_grupo["L3M"].fillna(0).mean()
+            desv_ppp = calc_desv_percentual(ppp_ago, ppp_l3m)
 
             positiv_ago = dados['Positivação'].fillna(0).mean()
             positiv_l3m = dados_l3['Positivação'].fillna(0).mean()
