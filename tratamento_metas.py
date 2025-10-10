@@ -389,50 +389,6 @@ def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.Data
     out.index = out.index.set_names([group_col, "Linha"])
     return out
 
-    """
-    Retorna matriz no layout solicitado:
-      - Colunas: ['Demanda PPP','Lançamentos','Mix Foco','OL']
-      - Linhas: para cada grupo (GD ou REP), 3 linhas: ['Objetivo (Meta)', 'Real', 'Cobertura']
-    """
-    agg = _agg_por_grupo(tabela_base, group_col=group_col)
-    cat_cols = {
-        "Demanda PPP": ("($)META_PPP", "PPP"),
-        "Lançamentos": ("($)META_PPP_LAN", "LANÇ"),
-        "Mix Foco": ("($)META_PPP_MIX", "MIX"),
-        "OL": ("($)META_OL", "($)OL"),
-    }
-
-    # Monta um DF com colunas MultiIndex (Categoria, Métrica)
-    frames = []
-    for nome_cat, (meta_col, real_col) in cat_cols.items():
-        objetivo = agg[meta_col]
-        real = agg[real_col]
-        cob = _coverage(real, objetivo)
-
-        bloco = pd.concat(
-            {
-                (nome_cat, "Objetivo (Meta)"): objetivo,
-                (nome_cat, "Real"): real,
-                (nome_cat, "Cobertura"): cob,
-            },
-            axis=1,
-        )
-        frames.append(bloco)
-
-    wide = pd.concat(frames, axis=1)
-
-    # Reordena colunas de categoria e métricas
-    wide = wide.reindex(
-        columns=pd.MultiIndex.from_product(
-            [["Demanda PPP", "Lançamentos", "Mix Foco", "OL"], ["Objetivo (Meta)", "Real", "Cobertura"]]
-        )
-    )
-
-    # Transforma as métricas em linhas (stack do nível 1 das colunas)
-    out = wide.stack(level=1, future_stack=True)  # index -> (group_col, 'Linha'); columns -> categorias
-    out.index = out.index.set_names([group_col, "Linha"])
-    return out
-
 def build_metas_total_gd(tabela_base: pd.DataFrame) -> pd.DataFrame:
     _ensure_columns(tabela_base, ["NOME GD"], "tabela_base")
     return build_matriz_por_grupo(tabela_base, group_col="NOME GD")
@@ -496,8 +452,7 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
       - Linha 'Outros' (soma do restante)
       - Linha 'TOTAL'
       - COB% recalculado no final
-
-    Observação: usa a função `_coverage(dem, meta)` já existente no seu código.
+      - Se houver arquivo OL, inclui coluna COB_OL%
     """
     df = df.rename(columns={"($)META_PPP": "META PPP AGO/25", "PPP": "DEM. PPP"})
     df["META PPP AGO/25"] = pd.to_numeric(df["META PPP AGO/25"], errors="coerce")
@@ -505,11 +460,17 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
 
     resultado = {}
     meta_coluna = os.getenv("COLUNA_META")
+    territorio_path = os.getenv("TERRITORIO_PATH")
     for rep, grupo_rep in df.groupby("NOME REP"):
         # Caminho do arquivo YTD do representante
         ytd_file = os.path.join(
             r"C:\Users\c0050485\Downloads\RT",
             f"tabela_top7_YTD_{str(rep).split()[0].upper()}.xlsx"
+        )
+        # Caminho do arquivo OL do representante
+        ol_file = os.path.join(
+            r"C:\Users\c0050485\Downloads",
+            f"Material Território OL RT.xlsx"
         )
         # Lê a ordem dos grupos da coluna A do arquivo YTD
         if os.path.exists(ytd_file):
@@ -527,6 +488,29 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
 
         grupo_agg["DESV. ABS"] = grupo_agg["DEM. PPP"] - grupo_agg["META PPP AGO/25"]
         grupo_agg["COB%"] = _coverage(grupo_agg["DEM. PPP"], grupo_agg["META PPP AGO/25"])
+
+        # Se arquivo OL existir, calcula cobertura OL
+        if os.path.exists(ol_file):
+            try:
+            # Busca a coluna de cobertura OL no df de metas
+                col_index = _build_col_index(df)
+                col_cov_ol = None
+                for alias in ALIASES["(%)_OL"]:
+                    norm_alias = _norm(alias)
+                    if norm_alias in col_index:
+                        col_cov_ol = col_index[norm_alias]
+                        break
+                if col_cov_ol:
+                    cob_ol = pd.to_numeric(df[col_cov_ol], errors="coerce").mean()
+                    add_cob_ol = True
+                else:
+                    cob_ol = np.nan
+            except Exception:
+                cob_ol = np.nan
+                add_cob_ol = False
+        else:
+            cob_ol = np.nan
+            add_cob_ol = False
 
         # Ordena conforme ordem_grupos, mantendo os demais ao final
         grupos_presentes = [g for g in ordem_grupos if g in grupo_agg.index]
@@ -557,6 +541,10 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
 
             # Recalcula COB% para todas as linhas do final_df
             final_df["COB%"] = _coverage(final_df["DEM. PPP"], final_df["META PPP AGO/25"])
+
+        # Adiciona coluna COB_OL% apenas se OL existir
+        if add_cob_ol:
+            final_df["COB_OL%"] = cob_ol * 100
 
         resultado[rep] = final_df
 
@@ -827,6 +815,12 @@ for sheet_name in wb.sheetnames:
             if cell.value is not None and cell.value != "":
                 _fmt_percent_por_valor(cell)
 
+    col_cov_ol = header_to_col.get('COB_OL%')
+    if col_cov_ol:
+        for row in range(2, ultima_linha + 1):
+            cell = ws[f'{col_cov_ol}{row}']
+            if cell.value is not None and cell.value != "":
+                _fmt_percent_por_valor(cell)
 # Salva o arquivo
 wb.save(arquivo_metas_GE)
 print(f"Arquivo formatado: {arquivo_metas_GE}")

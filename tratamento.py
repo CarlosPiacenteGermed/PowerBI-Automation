@@ -389,7 +389,7 @@ def main(mes_limite):
 
                 outros_row = {
                     '': 'OUTROS',
-                    'DMD | OL': round(ppp_ago_o),
+                    'DEM. OL AGO/25': round(ppp_ago_o),
                     'DESV. % (PPP L3M)': round(desv_ppp_o, 1),
                     ' ': '',
                     'POSITIV. AGO/25': round(positiv_ago_o),
@@ -445,7 +445,7 @@ def main(mes_limite):
 
             total_row = {
                 '': 'TOTAL',
-                'DMD | OL': round(ppp_ago),
+                'DEM. OL AGO/25': round(ppp_ago),
                 'DESV. % (PPP L3M)': round(desv_perc, 1),
                 ' ': '',
                 'POSITIV. AGO/25': round(positiv_ago, 2),
