@@ -23,9 +23,9 @@ if len(bookmark_names) != 2:
 path_sem_ge = os.path.join(downloads_folder, bookmark_names[0])
 path_metas = os.path.join(downloads_folder, bookmark_names[1])
 
+
 df_sem_ge = pd.read_excel(path_sem_ge, skiprows=2, engine="openpyxl")
 df_metas = pd.read_excel(path_metas, skiprows=2, engine="openpyxl")
-
 
 
  #========= Helpers =========
@@ -74,55 +74,108 @@ def _build_col_index(df: pd.DataFrame) -> dict:
 # Dicionário de aliases:
 # à esquerda: NOME CANÔNICO (o que o seu código já usa)
 # à direita: nomes alternativos que podem aparecer no arquivo "Território"
+
 ALIASES = {
     # Identificação
-    "NOME GD": ["NOME GD"],
-    "NOME REP": ["NOME REP", "NOME GR"],  # Território usa NOME GR
+    "NOME GD": ["NOME GD", "NOME GN"],               # <- ADAPTADO p/ SELL IN
+    "NOME REP": ["NOME REP", "NOME GR"],             # Território usa NOME GR
 
-    # OL (gerais)
-    "($)META_OL": ["($)META_OL"],
-    "($)OL": ["($)OL"],
-    "'Medidas'[($)OLDelta]": ["'Medidas'[($)OLDelta]"],
-    "(%)_OL": ["(%)_OL"],
+    # OL (gerais) ~ Faturado (SELL IN)
+    "($)META_OL": ["($)META_OL", "Meta Fat"],
+    "($)OL": ["($)OL", "Faturado"],
+    "'Medidas'[($)OLDelta]": ["'Medidas'[($)OLDelta]", "Δ Meta Fat", "Delta Meta Fat"],
+    "(%)_OL": ["(%)_OL", "%Cob Fat", "(%)Cob Fat"],
+
     "MERCANET": ["MERCANET"],
     "PHARMALINK": ["PHARMALINK"],
 
-    # PPP TOTAL (Assoc/Coord)  <->  PPP TERR (Território)
-    "($)META_PPP": ["($)META_PPP", "'Medidas'[($)META_PPP_TERR]"],
-    "PPP": ["PPP"],
-    "'Medidas'[($)DeltaMDTRAssoc]": ["'Medidas'[($)DeltaMDTRAssoc]", "'Medidas'[($)DeltaMDTRTerr]"],
-    "(%)_PPP": ["(%)_PPP", "'Medidas'[(%)_PPP_TERR]"],
+    # PPP TOTAL  (Assoc/Coord) <-> PPP TERR (Território) e SELL IN (Meta Dem / Demanda)
+    "($)META_PPP": ["($)META_PPP", "Meta Dem"],
+    "PPP": ["PPP", "Demanda"],
+    "'Medidas'[($)DeltaMDTRAssoc]": [
+        "'Medidas'[($)DeltaMDTRAssoc]",
+        "'Medidas'[($)DeltaMDTRTerr]",
+        "'Medidas'[($)DemandaDeltaTotal]"  # SELL IN
+    ],
+    "(%)_PPP": ["(%)_PPP", "'Medidas'[(%)_PPP_TERR]", "%Cob", "(%)Cob"],  # SELL IN usa "%Cob"
 
-    # MIX (Assoc = PPP_MIX ; Território = OL_MIX)
-    "($)META_PPP_MIX": ["($)META_PPP_MIX", "($)META_OL_MIX"],
-    "MIX": ["MIX", "($)OL_MIX"],
-    "'Medidas'[($)DemandaDeltaMixFocoAssoc]": ["'Medidas'[($)DemandaDeltaMixFocoAssoc]", "'Medidas'[($)OLDeltaMixFoco]"],
-    "(%)_PPP_MIX": ["(%)_PPP_MIX", "(%)_MIX_OL"],
+    # MIX (Assoc = PPP_MIX ; Território = OL_MIX) ; SELL IN = MixF
+    "($)META_PPP_MIX": ["($)META_PPP_MIX", "($)META_OL_MIX", "Meta MixF"],
+    "MIX": ["MIX", "($)OL_MIX", "Dem. MixF"],
+    "'Medidas'[($)DemandaDeltaMixFocoAssoc]": [
+        "'Medidas'[($)DemandaDeltaMixFocoAssoc]",
+        "'Medidas'[($)OLDeltaMixFoco]",
+        "Δ Meta MixF", "Delta Meta MixF"  # SELL IN
+    ],
+    "(%)_PPP_MIX": ["(%)_PPP_MIX", "(%)_MIX_OL", "%Cob MixF", "(%)Cob MixF"],
 
-    # Lançamentos (Assoc = PPP_LAN ; Território = OL_LANC)
-    "($)META_PPP_LAN": ["($)META_PPP_LAN", "($)META_OL_LANC"],
-    "LANÇ": ["LANÇ", "($)OL_LANC"],
-    "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]": ["'Medidas'[($)DemandaDeltaLaNCFocoAssoc]", "'Medidas'[($)OLDeltaMixLanc]"],
-    "(%)_PPP_LAN": ["(%)_PPP_LAN", "(%)_LANC_OL"],
+    # Lançamentos (Assoc = PPP_LAN ; Território = OL_LANC) ; SELL IN = Lanç
+    "($)META_PPP_LAN": ["($)META_PPP_LAN", "($)META_OL_LANC", "Meta Lanç"],
+    "LANÇ": ["LANÇ", "($)OL_LANC", "Dem. Lanç"],
+    "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]": [
+        "'Medidas'[($)DemandaDeltaLaNCFocoAssoc]",
+        "'Medidas'[($)OLDeltaMixLanc]",
+        "Δ Meta Lanç", "Delta Meta Lanç"  # SELL IN
+    ],
+    "(%)_PPP_LAN": ["(%)_PPP_LAN", "(%)_LANC_OL", "%Cob Lanç", "(%)Cob Lanç"],
 
-    # N COMBATE (Assoc = PPP_*_SO ; Território = OL_* )
-    "'Medidas'[($)META_PPP_N_COMBATE_SO]": ["'Medidas'[($)META_PPP_N_COMBATE_SO]", "'Medidas'[($)META_OL_N_COMBATE]"],
-    "N COMBATE": ["N COMBATE"],
-    "'Medidas'[($)Delta_N_Combate_SO]": ["'Medidas'[($)Delta_N_Combate_SO]", "'Medidas'[($)Delta_N_Combate]"],
-    "'Medidas'[(%)COB_N_COMBATE_SO]": ["'Medidas'[(%)COB_N_COMBATE_SO]", "'Medidas'[(%)COB_N_COMBATE]"],
+    # N COMBATE (Assoc = PPP_*_SO ; Território = OL_* ; SELL IN com sufixo _SI)
+    "'Medidas'[($)META_PPP_N_COMBATE_SO]": [
+        "'Medidas'[($)META_PPP_N_COMBATE_SO]",
+        "'Medidas'[($)META_OL_N_COMBATE]",
+        "Meta N Combate"  # SELL IN
+    ],
+    "N COMBATE": ["N COMBATE", "N Combate"],
+    "'Medidas'[($)Delta_N_Combate_SO]": [
+        "'Medidas'[($)Delta_N_Combate_SO]",
+        "'Medidas'[($)Delta_N_Combate_SI]"  # SELL IN
+    ],
+    "'Medidas'[(%)COB_N_COMBATE_SO]": [
+        "'Medidas'[(%)COB_N_COMBATE_SO]",
+        "'Medidas'[(%)COB_N_COMBATE_SI]"  # SELL IN
+    ],
 
-    # COMBATE (Assoc = PPP_*_SO ; Território = OL_* )
-    "'Medidas'[($)META_PPP_COMBATE_SO]": ["'Medidas'[($)META_PPP_COMBATE_SO]", "'Medidas'[($)META_OL_COMBATE]"],
-    "COMBATE": ["COMBATE"],
-    "'Medidas'[($)DeltaCombate_SO]": ["'Medidas'[($)DeltaCombate_SO]", "'Medidas'[($)DeltaCombate]"],
-    "'Medidas'[(%)COB_COMBATE_SO]": ["'Medidas'[(%)COB_COMBATE_SO]", "'Medidas'[(%)COB_COMBATE]"],
+    # COMBATE (Assoc = PPP_*_SO ; Território = OL_* ; SELL IN com sufixo _SI)
+    "'Medidas'[($)META_PPP_COMBATE_SO]": [
+        "'Medidas'[($)META_PPP_COMBATE_SO]",
+        "'Medidas'[($)META_OL_COMBATE]",
+        "Meta Combate"  # SELL IN
+    ],
+    "COMBATE": ["COMBATE", "Combate"],
+    "'Medidas'[($)DeltaCombate_SO]": [
+        "'Medidas'[($)DeltaCombate_SO]",
+        "'Medidas'[($)DeltaCombate_SI]"  # SELL IN
+    ],
+    "'Medidas'[(%)COB_COMBATE_SO]": [
+        "'Medidas'[(%)COB_COMBATE_SO]",
+        "'Medidas'[(%)COB_COMBATE_SI]"  # SELL IN
+    ],
 
-    # (Opcional) SKU/PDV (aparece em Território; hoje não usado no seu pipeline)
+    # (Opcional) SKU/PDV (Território)
     "($)META_SKU/PDV": ["($)META_SKU/PDV"],
     "(!)SKU/PDV (OL)": ["(!)SKU/PDV (OL)"],
     "'Medidas'[($)DeltaSKUPDV]": ["'Medidas'[($)DeltaSKUPDV]"],
     "(%)_SKU/PDV_OL": ["(%)_SKU/PDV_OL"],
 }
+
+
+def is_sell_in(df: pd.DataFrame) -> bool:
+    """
+    Heurística simples p/ detectar SELL IN a partir do cabeçalho original.
+    - Presença de colunas com sufixo _SI (ex.: ...Combate_SI)
+    - Ou nomes típicos do SELL IN: Meta Fat/Faturado, Meta Dem/Demanda, MixF, Lanç etc.
+    """
+    cols = [str(c).strip() for c in df.columns]
+    if any("A Faturar" in c for c in cols):
+        return True
+    sell_in_tokens = {
+        "Meta Fat", "Faturado", "%Cob Fat",
+        "Meta Dem", "Demanda",
+        "Meta MixF", "Dem. MixF",
+        "Meta Lanç", "Dem. Lanç"
+    }
+    return any(c in sell_in_tokens for c in cols)
+
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -265,7 +318,7 @@ BASE_COL_MIN = [
 ]
 BASE_COL_OPTIONAL = [
     # Território – SKU/PDV (OL)
-    "($)META_SKU/PDV", "(!)SKU/PDV (OL)", "'Medidas'[($)DeltaSKUPDV]", "(%)_SKU/PDV_OL",
+    "($)META_SKU/PDV", "NOME GC", "(!)SKU/PDV (OL)", "'Medidas'[($)DeltaSKUPDV]", "(%)_SKU/PDV_OL",
     "'Medidas'[($)META_PPP_N_COMBATE_SO]", "N COMBATE", "'Medidas'[($)Delta_N_Combate_SO]", "'Medidas'[(%)COB_N_COMBATE_SO]",
     "'Medidas'[($)META_PPP_COMBATE_SO]", "COMBATE", "'Medidas'[($)DeltaCombate_SO]", "'Medidas'[(%)COB_COMBATE_SO]",
     # (Opcional) Se você confirmar que "Positivação MIX Foco" é outra origem, inclua aqui
@@ -295,31 +348,36 @@ def build_tabela_base(df_sem_ge: pd.DataFrame) -> pd.DataFrame:
 # ========= Tabelas finais =========
 
 
-def _descobrir_categorias_disponiveis(df: pd.DataFrame) -> dict:
+
+def _descobrir_categorias_disponiveis(df: pd.DataFrame, sell_in: bool = False) -> dict:
     """
-    Retorna um dicionário {rótulo: (meta_col, real_col)} apenas
-    para categorias cujos pares meta/real existem no DF.
+    Retorna {rótulo: (meta_col, real_col)} só para categorias cujos pares meta/real existirem no DF.
+    - SELL IN: remove N COMBATE e COMBATE, e exibe 'Faturado' no lugar de 'OL'
+    - Não SELL IN: mantém 'OL', 'N COMBATE' e 'COMBATE' como antes
     """
+    # Base comum
     display_map = {
-        # Clássicas
         "Demanda PPP": ("($)META_PPP", "PPP"),
         "Lançamentos": ("($)META_PPP_LAN", "LANÇ"),
         "Mix Foco": ("($)META_PPP_MIX", "MIX"),
-        "OL": ("($)META_OL", "($)OL"),
-
-        # Extras já suportadas
-        "SKU/PDV (OL)": ("($)META_SKU/PDV", "(!)SKU/PDV (OL)"),
-
-        # ✅ Novas categorias pedidas
-        "N COMBATE": ("'Medidas'[($)META_PPP_N_COMBATE_SO]", "N COMBATE"),
-        "COMBATE": ("'Medidas'[($)META_PPP_COMBATE_SO]", "COMBATE"),
     }
+
+    if sell_in:
+        # Em SELL IN, o Faturado substitui 'OL' como label
+        display_map["Faturado"] = ("($)META_OL", "($)OL")
+        # ⚠️ Não incluir N COMBATE / COMBATE
+    else:
+        # Comportamento atual (não SELL IN)
+        display_map["OL"] = ("($)META_OL", "($)OL")
+        display_map["N COMBATE"] = ("'Medidas'[($)META_PPP_N_COMBATE_SO]", "N COMBATE")
+        display_map["COMBATE"] = ("'Medidas'[($)META_PPP_COMBATE_SO]", "COMBATE")
 
     disponiveis = {}
     for label, (meta_col, real_col) in display_map.items():
         if meta_col in df.columns and real_col in df.columns:
             disponiveis[label] = (meta_col, real_col)
     return disponiveis
+
 
 
 
@@ -350,13 +408,14 @@ def _agg_por_grupo(tabela_base: pd.DataFrame, group_col: str, cat_cols: dict) ->
 
     return agg
 
-def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.DataFrame:
+
+def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str, sell_in: bool = False) -> pd.DataFrame:
     """
     Monta matriz no layout:
-      - Colunas: categorias dinâmicas (ex.: Demanda PPP, Lançamentos, Mix Foco, OL, SKU/PDV (OL), ...)
-      - Linhas: para cada grupo (GD/REP): ['Objetivo (Meta)', 'Real', 'Cobertura'].
+    - Colunas: categorias dinâmicas
+    - Linhas: ['Objetivo (Meta)', 'Real', 'Cobertura'] por grupo (GD/REP)
     """
-    cat_cols = _descobrir_categorias_disponiveis(tabela_base)
+    cat_cols = _descobrir_categorias_disponiveis(tabela_base, sell_in=sell_in)
     agg = _agg_por_grupo(tabela_base, group_col=group_col, cat_cols=cat_cols)
 
     frames = []
@@ -376,30 +435,28 @@ def build_matriz_por_grupo(tabela_base: pd.DataFrame, group_col: str) -> pd.Data
 
     wide = pd.concat(frames, axis=1)
 
-    # Ordena colunas na sequência: as 4 clássicas, depois extras em ordem alfabética
-    ordem_base = ["Demanda PPP", "Lançamentos", "Mix Foco", "OL"]
+    # Ordena base: PPP, Lanç, Mix, e depois 'Faturado' (SELL IN) ou 'OL' (não SELL IN)
+    ordem_base = ["Demanda PPP", "Lançamentos", "Mix Foco", ("Faturado" if sell_in else "OL")]
     extras = [c for c in cat_cols.keys() if c not in ordem_base]
     ordem_final = [c for c in ordem_base if c in cat_cols] + sorted(extras)
     wide = wide.reindex(
         columns=pd.MultiIndex.from_product([ordem_final, ["Objetivo (Meta)", "Real", "Cobertura"]])
     )
 
-    # Transforma métricas em linhas
     out = wide.stack(level=1, future_stack=True)
     out.index = out.index.set_names([group_col, "Linha"])
     return out
 
-def build_metas_total_gd(tabela_base: pd.DataFrame) -> pd.DataFrame:
+def build_metas_total_gd(tabela_base: pd.DataFrame, sell_in: bool = False) -> pd.DataFrame:
     _ensure_columns(tabela_base, ["NOME GD"], "tabela_base")
-    return build_matriz_por_grupo(tabela_base, group_col="NOME GD")
+    return build_matriz_por_grupo(tabela_base, group_col="NOME GD", sell_in=sell_in)
 
-def build_metas_gr_completa(tabela_base: pd.DataFrame) -> pd.DataFrame:
+def build_metas_gr_completa(tabela_base: pd.DataFrame, sell_in: bool = False) -> pd.DataFrame:
     _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
-    return build_matriz_por_grupo(tabela_base, group_col="NOME REP")
-
-    """Matriz por Representante (GR) no layout solicitado."""
-    _ensure_columns(tabela_base, ["NOME REP"], "tabela_base")
-    return build_matriz_por_grupo(tabela_base, group_col="NOME REP")
+    return build_matriz_por_grupo(tabela_base, group_col="NOME REP", sell_in=sell_in)
+def build_metas_gc_completa(tabela_base: pd.DataFrame, sell_in: bool = False) -> pd.DataFrame:
+    _ensure_columns(tabela_base, ["NOME GC"], "tabela_base")
+    return build_matriz_por_grupo(tabela_base, group_col="NOME GC", sell_in=sell_in)
 
 def build_metas_gr_ppp(tabela_base: pd.DataFrame) -> pd.DataFrame:
     """
@@ -552,16 +609,21 @@ def build_top8_grupo_por_rep(df: pd.DataFrame) -> dict:
 
 # ========= Execução: preparar df_sem_ge e gerar as tabelas =========
 
+sell_in_flag = is_sell_in(df_sem_ge) or is_sell_in(df_metas)
 
+# Normaliza e segue fluxo atual
+df_sem_ge = normalize_columns(df_sem_ge)
+df_metas  = normalize_columns(df_metas)
 # 2) Tabela base com todas as colunas/deltas/coberturas
 tabela_base = build_tabela_base(df_sem_ge)
 tabela_base_metas = build_tabela_base(df_metas)
 ytd_path = r"C:\Users\c0050485\Downloads\RT\tabela_ytd.xlsx"
 ytd_nomes = pd.read_excel(ytd_path, usecols=[0], skiprows=1, header=None).iloc[:, 0].astype(str).tolist()
 # 3) As três saídas exatamente no layout pedido
-metas_total_gd = build_metas_total_gd(tabela_base)          # Index: (NOME GD, Linha) | Colunas: categorias
-metas_gr = build_metas_gr_ppp(tabela_base)                  # Index: NOME REP       | Colunas: PPP
-metas_gr_completa = build_metas_gr_completa(tabela_base)    # Index: (NOME REP, Linha) | Colunas: categorias
+metas_total_gd     = build_metas_total_gd(tabela_base, sell_in=sell_in_flag)
+metas_gr           = build_metas_gr_ppp(tabela_base)            # Index: NOME REP       | Colunas: PPP
+metas_gr_completa  = build_metas_gr_completa(tabela_base, sell_in=sell_in_flag)    # Index: (NOME REP, Linha) | Colunas: categorias
+metas_gc           = build_metas_gc_completa(tabela_base, sell_in=sell_in_flag)    # Index: (NOME GC, Linha) | Colunas: categorias
 primeiro_nome_map = {str(nome).split()[0].upper(): nome for nome in metas_gr.index if nome != "TOTAL"}
 ordem_nomes = []
 for primeiro_nome in ytd_nomes:
@@ -594,6 +656,7 @@ with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
     metas_total_gd.to_excel(writer, sheet_name="METAS_TOTAL_GD")        # tem índice MultiIndex (NOME GD, Linha)
     metas_gr.to_excel(writer, sheet_name="METAS_GR")                    # índice: NOME REP
     metas_gr_completa.to_excel(writer, sheet_name="METAS_GR_COMPLETA") 
+    metas_gc.to_excel(writer, sheet_name="METAS_GC_COMPLETA")          # tem índice MultiIndex (NOME GC, Linha)
 
 
 top8_por_rep = build_top8_grupo_por_rep(df_metas)
@@ -632,6 +695,7 @@ with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
     metas_total_gd.to_excel(writer, sheet_name="METAS_TOTAL_GD")
     metas_gr.to_excel(writer, sheet_name="METAS_GR")
     metas_gr_completa.to_excel(writer, sheet_name="METAS_GR_COMPLETA")
+    metas_gc.to_excel(writer, sheet_name="METAS_GC_COMPLETA")
 
 # Ajusta largura das colunas antes de formatar
 wb = load_workbook(out_path)
@@ -744,6 +808,26 @@ if 'METAS_GR' in wb.sheetnames:
             if cell.value is not None and cell.value != "":
                 _fmt_percent_por_valor(cell)
 
+if 'METAS_GC_COMPLETA' in wb.sheetnames:
+    ws = wb['METAS_GC_COMPLETA']
+    ultima_linha = ws.max_row
+    ultima_coluna = ws.max_column
+
+    cols_categorias = [get_column_letter(c) for c in range(3, ultima_coluna + 1)]
+
+    for row in range(2, ultima_linha + 1):
+        linha_val = ws[f'B{row}'].value
+        linha_norm = (str(linha_val).strip().lower() if linha_val is not None else '')
+        is_cobertura = (linha_norm == 'cobertura')
+
+        for col in cols_categorias:
+            cell = ws[f'{col}{row}']
+            if cell.value is None or cell.value == "":
+                continue
+            if is_cobertura:
+                _fmt_percent_por_valor(cell)
+            else:
+                cell.number_format = formato_milhar
 wb.save(arquivo_metas)
 print(f"Arquivo formatado: {arquivo_metas}")
 
